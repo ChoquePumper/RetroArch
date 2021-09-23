@@ -1,6 +1,6 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
- *  Copyright (C) 2011-2016 - Daniel De Matteis
+ *  Copyright (C) 2011-2021 - Daniel De Matteis
  *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
@@ -50,6 +50,8 @@
 #ifdef HAVE_MENU
 #include "menu/menu_defines.h"
 #endif
+
+#include "runloop.h"
 
 RETRO_BEGIN_DECLS
 
@@ -421,16 +423,9 @@ void runloop_msg_queue_push(const char *msg,
       char *title,
       enum message_queue_icon icon, enum message_queue_category category);
 
-void runloop_get_status(bool *is_paused, bool *is_idle, bool *is_slowmotion,
-      bool *is_perfcnt_enable);
-
 void retroarch_menu_running(void);
 
 void retroarch_menu_running_finished(bool quit);
-
-rarch_system_info_t *runloop_get_system_info(void);
-
-struct retro_system_info *runloop_get_libretro_system_info(void);
 
 void retroarch_force_video_driver_fallback(const char *driver);
 
@@ -805,6 +800,8 @@ void recording_driver_update_streaming_url(void);
 #define VIDEO_SHADER_MENU_5      (GFX_MAX_SHADERS - 6)
 #define VIDEO_SHADER_MENU_6      (GFX_MAX_SHADERS - 7)
 #define VIDEO_SHADER_STOCK_HDR   (GFX_MAX_SHADERS - 8)
+
+#define VIDEO_HDR_MAX_CONTRAST 10.0f
 
 #if defined(_XBOX360)
 #define DEFAULT_SHADER_TYPE RARCH_SHADER_HLSL
@@ -1584,7 +1581,7 @@ void video_driver_set_viewport_core(void);
 
 void video_driver_set_viewport_full(void);
 
-void video_driver_reset_custom_viewport(void);
+void video_driver_reset_custom_viewport(void *settings_data);
 
 void video_driver_set_rgba(void);
 
@@ -1597,6 +1594,14 @@ void video_driver_set_hdr_support(void);
 void video_driver_unset_hdr_support(void);
 
 bool video_driver_supports_hdr(void);
+
+unsigned video_driver_get_hdr_color(unsigned color);
+
+float video_driver_get_hdr_luminance(float nits);
+
+unsigned video_driver_get_hdr_paper_white(void);
+
+float* video_driver_get_hdr_paper_white_float(void);
 
 bool video_driver_get_next_video_out(void);
 
@@ -1956,37 +1961,6 @@ extern const shader_backend_t gl_cg_backend;
 
 void bsv_movie_frame_rewind(void);
 
-/* Location */
-
-typedef struct location_driver
-{
-   void *(*init)(void);
-   void (*free)(void *data);
-
-   bool (*start)(void *data);
-   void (*stop)(void *data);
-
-   bool (*get_position)(void *data, double *lat, double *lon,
-         double *horiz_accuracy, double *vert_accuracy);
-   void (*set_interval)(void *data, unsigned interval_msecs,
-         unsigned interval_distance);
-   const char *ident;
-} location_driver_t;
-
-extern location_driver_t location_corelocation;
-extern location_driver_t location_android;
-
-/**
- * config_get_location_driver_options:
- *
- * Get an enumerated list of all location driver names,
- * separated by '|'.
- *
- * Returns: string listing of all location driver names,
- * separated by '|'.
- **/
-const char* config_get_location_driver_options(void);
-
 /* Camera */
 
 typedef struct camera_driver
@@ -2045,6 +2019,8 @@ void retroarch_init_task_queue(void);
  ******************************************************************************/
 bool input_set_rumble_state(unsigned port,
       enum retro_rumble_effect effect, uint16_t strength);
+
+bool input_set_rumble_gain(unsigned gain);
 
 float input_get_sensor_state(unsigned port, unsigned id);
 
@@ -2115,6 +2091,8 @@ typedef enum apple_view_type
 } apple_view_type_t;
 
 bool retroarch_get_current_savestate_path(char *path, size_t len);
+
+runloop_state_t *runloop_state_get_ptr(void);
 
 RETRO_END_DECLS
 

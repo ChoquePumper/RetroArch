@@ -986,7 +986,7 @@ static bool content_file_load(
    retro_ctx_load_content_info_t load_info;
    bool used_vfs_fallback_copy                = false;
 #ifdef __WINRT__
-   rarch_system_info_t *system                = runloop_get_system_info();
+   rarch_system_info_t *system                = &runloop_state_get_ptr()->system;
 #endif
    enum rarch_content_type first_content_type = RARCH_CONTENT_NONE;
 
@@ -1555,7 +1555,7 @@ static void task_push_to_history_list(
    {
       char tmp[PATH_MAX_LENGTH];
       const char *path_content       = path_get(RARCH_PATH_CONTENT);
-      struct retro_system_info *info = runloop_get_libretro_system_info();
+      struct retro_system_info *info = &runloop_state_get_ptr()->system.info;
 
       tmp[0] = '\0';
 
@@ -1635,7 +1635,7 @@ static void task_push_to_history_list(
 #ifdef HAVE_MENU
                else
                {
-                  menu_handle_t *menu = menu_driver_get_ptr();
+                  menu_handle_t *menu = menu_state_get_ptr()->driver_data;
                   /* Set database name + checksum */
                   if (menu)
                   {
@@ -1784,7 +1784,7 @@ bool task_push_start_dummy_core(content_ctx_info_t *content_info)
    char *error_string                         = NULL;
    global_t *global                           = global_get_ptr();
    settings_t *settings                       = config_get_ptr();
-   rarch_system_info_t *sys_info              = runloop_get_system_info();
+   rarch_system_info_t *sys_info              = &runloop_state_get_ptr()->system;
    const char *path_dir_system                = settings->paths.directory_system;
    bool check_firmware_before_loading         = settings->bools.check_firmware_before_loading;
 
@@ -1882,7 +1882,7 @@ bool task_push_load_content_from_playlist_from_menu(
    char *error_string                         = NULL;
    global_t *global                           = global_get_ptr();
    settings_t *settings                       = config_get_ptr();
-   rarch_system_info_t *sys_info              = runloop_get_system_info();
+   rarch_system_info_t *sys_info              = &runloop_state_get_ptr()->system;
    const char *path_dir_system                = settings->paths.directory_system;
 #ifndef HAVE_DYNAMIC
    bool force_core_reload                     = settings->bools.always_reload_core_on_run_content;
@@ -2274,7 +2274,7 @@ static bool task_load_content_internal(
    bool ret                                   = false;
    char *error_string                         = NULL;
    global_t *global                           = global_get_ptr();
-   rarch_system_info_t *sys_info              = runloop_get_system_info();
+   rarch_system_info_t *sys_info              = &runloop_state_get_ptr()->system;
    settings_t *settings                       = config_get_ptr();
    bool check_firmware_before_loading         = settings->bools.check_firmware_before_loading;
    bool set_supports_no_game_enable           = settings->bools.set_supports_no_game_enable;
@@ -2304,7 +2304,7 @@ static bool task_load_content_internal(
 
    if (sys_info)
    {
-      struct retro_system_info *system        = runloop_get_libretro_system_info();
+      struct retro_system_info *system        = &runloop_state_get_ptr()->system.info;
 
       content_ctx.set_supports_no_game_enable = set_supports_no_game_enable;
 
@@ -2584,7 +2584,7 @@ void content_clear_subsystem(void)
 void content_set_subsystem(unsigned idx)
 {
    const struct retro_subsystem_info *subsystem;
-   rarch_system_info_t                  *system = runloop_get_system_info();
+   rarch_system_info_t                  *system = &runloop_state_get_ptr()->system;
    content_state_t  *p_content                  = content_state_get_ptr();
 
    /* Core fully loaded, use the subsystem data */
@@ -2613,7 +2613,7 @@ void content_set_subsystem(unsigned idx)
 /* Sets the subsystem by name */
 bool content_set_subsystem_by_name(const char* subsystem_name)
 {
-   rarch_system_info_t                  *system = runloop_get_system_info();
+   rarch_system_info_t                  *system = &runloop_state_get_ptr()->system;
    unsigned i                                   = 0;
    /* Core not loaded completely, use the data we peeked on load core */
    const struct retro_subsystem_info 
@@ -2637,7 +2637,7 @@ bool content_set_subsystem_by_name(const char* subsystem_name)
 
 void content_get_subsystem_friendly_name(const char* subsystem_name, char* subsystem_friendly_name, size_t len)
 {
-   rarch_system_info_t                  *system = runloop_get_system_info();
+   rarch_system_info_t                  *system = &runloop_state_get_ptr()->system;
    unsigned i                                   = 0;
    /* Core not loaded completely, use the data we peeked on load core */
    const struct retro_subsystem_info *subsystem = subsystem_data;
@@ -2754,7 +2754,7 @@ bool content_init(void)
    bool ret                                   = true;
    char *error_string                         = NULL;
    global_t *global                           = global_get_ptr();
-   rarch_system_info_t *sys_info              = runloop_get_system_info();
+   rarch_system_info_t *sys_info              = &runloop_state_get_ptr()->system;
    settings_t *settings                       = config_get_ptr();
    bool check_firmware_before_loading         = settings->bools.check_firmware_before_loading;
    bool set_supports_no_game_enable           = settings->bools.set_supports_no_game_enable;
@@ -2796,7 +2796,7 @@ bool content_init(void)
 
    if (sys_info)
    {
-      struct retro_system_info *system        = runloop_get_libretro_system_info();
+      struct retro_system_info *system        = &runloop_state_get_ptr()->system.info;
 
       content_ctx.set_supports_no_game_enable = set_supports_no_game_enable;
 

@@ -2514,23 +2514,20 @@ QVector<QHash<QString, QString> > MainWindow::getCoreInfo()
                if (core_info->firmware[i].missing)
                {
                   missing        = true;
-                  labelText     += msg_hash_to_str(
-                        MENU_ENUM_LABEL_VALUE_MISSING);
+                  if (core_info->firmware[i].optional)
+                     labelText  += msg_hash_to_str(
+                           MENU_ENUM_LABEL_VALUE_MISSING_OPTIONAL);
+                  else
+                     labelText  += msg_hash_to_str(
+                           MENU_ENUM_LABEL_VALUE_MISSING_REQUIRED);
                }
                else
-                  labelText     += msg_hash_to_str(
-                        MENU_ENUM_LABEL_VALUE_PRESENT);
-
-               labelText        += ", ";
-
-               if (core_info->firmware[i].optional)
-                  labelText     += msg_hash_to_str(
-                        MENU_ENUM_LABEL_VALUE_OPTIONAL);
-               else
-                  labelText     += msg_hash_to_str(
-                        MENU_ENUM_LABEL_VALUE_REQUIRED);
-
-               labelText        += ":";
+                  if (core_info->firmware[i].optional)
+                     labelText  += msg_hash_to_str(
+                           MENU_ENUM_LABEL_VALUE_PRESENT_OPTIONAL);
+                  else
+                     labelText  += msg_hash_to_str(
+                           MENU_ENUM_LABEL_VALUE_PRESENT_REQUIRED);
 
                if (core_info->firmware[i].desc)
                   valueText      = core_info->firmware[i].desc;
@@ -2949,7 +2946,7 @@ void MainWindow::onRunClicked()
 
 bool MainWindow::isContentLessCore()
 {
-   rarch_system_info_t *system = runloop_get_system_info();
+   rarch_system_info_t *system = &runloop_state_get_ptr()->system;
 
    return system->load_no_content;
 }
@@ -3674,7 +3671,7 @@ void MainWindow::onStopClicked()
 void MainWindow::setCurrentCoreLabel()
 {
    bool update                      = false;
-   struct retro_system_info *system = runloop_get_libretro_system_info();
+   struct retro_system_info *system = &runloop_state_get_ptr()->system.info;
    QString libraryName              = system->library_name;
    const char *no_core_str          = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NO_CORE);
 

@@ -544,7 +544,7 @@ int generic_action_ok_displaylist_push(const char *path,
    const char          *content_path       = NULL;
    const char          *info_label         = NULL;
    const char          *info_path          = NULL;
-   menu_handle_t *menu                     = menu_driver_get_ptr();
+   menu_handle_t *menu                     = menu_state_get_ptr()->driver_data;
    settings_t            *settings         = config_get_ptr();
    const char *menu_ident                  = menu_driver_ident();
    file_list_t           *menu_stack       = menu_entries_get_menu_stack_ptr(0);
@@ -1048,8 +1048,8 @@ int generic_action_ok_displaylist_push(const char *path,
          break;
       case ACTION_OK_DL_REMAP_FILE:
          {
-            struct retro_system_info *system     = runloop_get_libretro_system_info();
-            const char *core_name                = system ? system->library_name : NULL;
+            struct retro_system_info *system = &runloop_state_get_ptr()->system.info;
+            const char *core_name            = system ? system->library_name : NULL;
 
             if (!string_is_empty(core_name) && !string_is_empty(settings->paths.directory_input_remapping))
             {
@@ -1679,7 +1679,7 @@ static int file_load_with_detect_core_wrapper(
       unsigned type, bool is_carchive)
 {
    int ret                             = 0;
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -1770,7 +1770,7 @@ static int action_ok_file_load_with_detect_core_carchive(
       const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -1852,7 +1852,7 @@ static int generic_action_ok(const char *path,
    const char             *menu_path = NULL;
    const char            *menu_label = NULL;
    const char *flush_char            = NULL;
-   menu_handle_t               *menu = menu_driver_get_ptr();
+   menu_handle_t *menu               = menu_state_get_ptr()->driver_data;
 #ifdef HAVE_AUDIOMIXER
    settings_t              *settings = config_get_ptr();
    bool audio_enable_menu            = settings->bools.audio_enable_menu;
@@ -1923,11 +1923,11 @@ static int generic_action_ok(const char *path,
             bool config_save_on_exit        = settings->bools.config_save_on_exit;
             flush_type                      = MENU_SETTINGS;
 
-            gfx_display_set_msg_force(true);
+            disp_get_ptr()->msg_force       = true;
 
             if (config_replace(config_save_on_exit, action_path))
             {
-               bool pending_push = false;
+               bool pending_push            = false;
                menu_driver_ctl(MENU_NAVIGATION_CTL_CLEAR, &pending_push);
                ret = -1;
             }
@@ -2202,7 +2202,7 @@ static int action_ok_file_load(const char *path,
       /* TODO/FIXME - this path is triggered when we try to load a
        * file from an archive while inside the load subsystem
        * action */
-      menu_handle_t *menu                 = menu_driver_get_ptr();
+      menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
       if (!menu)
          return menu_cbs_exit();
 
@@ -2246,7 +2246,7 @@ static int action_ok_file_load(const char *path,
                msg_hash_to_str(MENU_ENUM_LABEL_DEFERRED_ARCHIVE_OPEN))
          )
       {
-         menu_handle_t *menu                 = menu_driver_get_ptr();
+	 menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
          if (!menu)
             return menu_cbs_exit();
 
@@ -2334,7 +2334,7 @@ static int action_ok_playlist_entry_collection(const char *path,
    const struct playlist_entry *entry     = NULL;
    core_info_t* core_info                 = NULL;
    bool core_is_builtin                   = false;
-   menu_handle_t *menu                    = menu_driver_get_ptr();
+   menu_handle_t *menu                    = menu_state_get_ptr()->driver_data;
    settings_t *settings                   = config_get_ptr();
    bool playlist_sort_alphabetical        = settings->bools.playlist_sort_alphabetical;
    const char *path_content_history       = settings->paths.path_content_history;
@@ -2669,7 +2669,7 @@ static int action_ok_load_cdrom(const char *path,
       return -1;
    }
 
-   system = runloop_get_libretro_system_info();
+   system = &runloop_state_get_ptr()->system.info;
 
    if (system && !string_is_empty(system->library_name))
    {
@@ -2788,7 +2788,7 @@ static int action_ok_audio_add_to_mixer_and_collection(const char *path,
 {
    char combined_path[PATH_MAX_LENGTH];
    struct playlist_entry entry = {0};
-   menu_handle_t *menu         = menu_driver_get_ptr();
+   menu_handle_t *menu         = menu_state_get_ptr()->driver_data;
 
    combined_path[0]            = '\0';
 
@@ -2819,7 +2819,7 @@ static int action_ok_audio_add_to_mixer_and_collection_and_play(const char *path
 {
    char combined_path[PATH_MAX_LENGTH];
    struct playlist_entry entry = {0};
-   menu_handle_t *menu         = menu_driver_get_ptr();
+   menu_handle_t *menu         = menu_state_get_ptr()->driver_data;
 
    combined_path[0]            = '\0';
 
@@ -2991,7 +2991,7 @@ static void menu_input_st_string_cb_enable_settings(void *userdata,
 static int action_ok_shader_pass(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu       = menu_driver_get_ptr();
+   menu_handle_t *menu       = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -3352,7 +3352,7 @@ static int generic_action_ok_remap_file_operation(const char *path,
    char directory[PATH_MAX_LENGTH];
    char file[PATH_MAX_LENGTH];
    char content_dir[PATH_MAX_LENGTH];
-   struct retro_system_info *system     = runloop_get_libretro_system_info();
+   struct retro_system_info *system     = &runloop_state_get_ptr()->system.info;
    const char *core_name                = system ? system->library_name : NULL;
    settings_t *settings                 = config_get_ptr();
    const char *path_dir_input_remapping = settings->paths.directory_input_remapping;
@@ -3578,7 +3578,7 @@ static int action_ok_core_deferred_set(const char *new_core_path,
 {
    size_t selection              = menu_navigation_get_selection();
    struct playlist_entry entry   = {0};
-   menu_handle_t *menu           = menu_driver_get_ptr();
+   menu_handle_t *menu           = menu_state_get_ptr()->driver_data;
    core_info_t *core_info        = NULL;
    const char *core_display_name = NULL;
    char resolved_core_path[PATH_MAX_LENGTH];
@@ -3699,7 +3699,7 @@ static int action_ok_load_core_deferred(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
    content_ctx_info_t content_info;
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    content_info.argc                   = 0;
    content_info.argv                   = NULL;
@@ -3756,7 +3756,7 @@ static int action_ok_audio_run(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
    char combined_path[PATH_MAX_LENGTH];
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    combined_path[0] = '\0';
 
@@ -4194,7 +4194,7 @@ static int action_ok_file_load_imageviewer(const char *path,
 static int action_ok_file_load_current_core(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -4207,7 +4207,7 @@ static int action_ok_file_load_detect_core(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
    content_ctx_info_t content_info;
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -4437,7 +4437,7 @@ static void cb_net_generic(retro_task_t *task,
    bool refresh                   = false;
    http_transfer_data_t *data     = (http_transfer_data_t*)task_data;
    file_transfer_t *state         = (file_transfer_t*)user_data;
-   menu_handle_t            *menu = menu_driver_get_ptr();
+   menu_handle_t *menu            = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       goto finish;
@@ -4969,7 +4969,7 @@ static int action_ok_sideload_core(const char *path,
    const char *menu_path    = NULL;
    const char *core_file    = path;
    bool core_loaded         = false;
-   menu_handle_t *menu      = menu_driver_get_ptr();
+   menu_handle_t *menu      = menu_state_get_ptr()->driver_data;
    settings_t *settings     = config_get_ptr();
    const char *dir_libretro = settings->paths.directory_libretro;
 
@@ -5140,7 +5140,7 @@ DEFAULT_ACTION_OK_CMD_FUNC(action_ok_show_wimp,                CMD_EVENT_UI_COMP
 static int action_ok_set_core_association(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -5155,8 +5155,8 @@ static int action_ok_set_core_association(const char *path,
 static int action_ok_reset_core_association(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu                 = menu_driver_get_ptr();
    size_t playlist_index;
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -5182,7 +5182,7 @@ static int action_ok_add_to_favorites(const char *path,
    if (!string_is_empty(content_path))
    {
       global_t *global                 = global_get_ptr();
-      struct retro_system_info *system = runloop_get_libretro_system_info();
+      struct retro_system_info *system = &runloop_state_get_ptr()->system.info;
       struct string_list *str_list     = NULL;
       const char *crc32                = NULL;
       const char *db_name              = NULL;
@@ -5246,7 +5246,7 @@ static int action_ok_add_to_favorites(const char *path,
 
       /* > crc32 + db_name */
       {
-         menu_handle_t *menu                 = menu_driver_get_ptr();
+	 menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
          if (menu)
          {
             playlist_t *playlist_curr = playlist_get_cached();
@@ -5298,7 +5298,7 @@ static int action_ok_add_to_favorites_playlist(const char *path,
 {
    playlist_t *playlist_curr           = playlist_get_cached();
    const struct playlist_entry *entry  = NULL;
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
    int ret                             = 0;
 
    if (!playlist_curr)
@@ -5407,7 +5407,7 @@ static int action_ok_delete_entry(const char *path,
 #endif
    char *def_conf_fav_path      = NULL;
    playlist_t *playlist         = playlist_get_cached();
-   menu_handle_t *menu          = menu_driver_get_ptr();
+   menu_handle_t *menu          = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -6012,7 +6012,7 @@ static int action_ok_push_downloads_dir(const char *path,
 int action_ok_push_filebrowser_list_dir_select(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu       = menu_driver_get_ptr();
+   menu_handle_t *menu       = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -6026,7 +6026,7 @@ int action_ok_push_filebrowser_list_dir_select(const char *path,
 int action_ok_push_filebrowser_list_file_select(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-   menu_handle_t *menu       = menu_driver_get_ptr();
+   menu_handle_t *menu       = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -6646,7 +6646,7 @@ static int action_ok_load_archive(const char *path,
 {
    const char *menu_path           = NULL;
    const char *content_path        = NULL;
-   menu_handle_t *menu             = menu_driver_get_ptr();
+   menu_handle_t *menu             = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -6674,7 +6674,7 @@ static int action_ok_load_archive_detect_core(const char *path,
    core_info_list_t *list              = NULL;
    const char *menu_path               = NULL;
    const char *content_path            = NULL;
-   menu_handle_t *menu                 = menu_driver_get_ptr();
+   menu_handle_t *menu                 = menu_state_get_ptr()->driver_data;
 
    if (!menu)
       return menu_cbs_exit();
@@ -6907,7 +6907,7 @@ static int action_ok_disk_cycle_tray_status(const char *path,
 {
    bool disk_ejected              = false;
    bool print_log                 = false;
-   rarch_system_info_t *sys_info  = runloop_get_system_info();
+   rarch_system_info_t *sys_info  = &runloop_state_get_ptr()->system;
    settings_t *settings           = config_get_ptr();
 #ifdef HAVE_AUDIOMIXER
    bool audio_enable_menu         = settings->bools.audio_enable_menu;
@@ -6959,8 +6959,8 @@ static int action_ok_disk_image_append(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
    char image_path[PATH_MAX_LENGTH];
-   rarch_system_info_t *sys_info = runloop_get_system_info();
-   menu_handle_t *menu           = menu_driver_get_ptr();
+   rarch_system_info_t *sys_info = &runloop_state_get_ptr()->system;
+   menu_handle_t *menu           = menu_state_get_ptr()->driver_data;
    const char *menu_path         = NULL;
    settings_t *settings          = config_get_ptr();
 #ifdef HAVE_AUDIOMIXER
@@ -7023,7 +7023,9 @@ static int action_ok_manual_content_scan_start(const char *path,
    playlist_config.old_format          = settings->bools.playlist_use_old_format;
    playlist_config.compress            = settings->bools.playlist_compression;
    playlist_config.fuzzy_archive_match = settings->bools.playlist_fuzzy_archive_match;
-   playlist_config_set_base_content_directory(&playlist_config, settings->bools.playlist_portable_paths ? settings->paths.directory_menu_content : NULL);
+   playlist_config_set_base_content_directory(&playlist_config,
+         settings->bools.playlist_portable_paths ?
+               settings->paths.directory_menu_content : NULL);
 
    task_push_manual_content_scan(&playlist_config, directory_playlist);
    return 0;
@@ -7402,7 +7404,7 @@ static int action_ok_pl_entry_content_thumbnails(const char *path,
 {
    char system[PATH_MAX_LENGTH];
    playlist_t *playlist = playlist_get_cached();
-   menu_handle_t *menu  = menu_driver_get_ptr();
+   menu_handle_t *menu  = menu_state_get_ptr()->driver_data;
 
    system[0] = '\0';
 
@@ -7457,6 +7459,120 @@ static int action_ok_playlist_clean(const char *path,
 
    task_push_pl_manager_clean_playlist(playlist_config);
 
+   return 0;
+}
+
+static int action_ok_playlist_refresh(const char *path,
+      const char *label, unsigned type, size_t idx, size_t entry_idx)
+{
+   playlist_config_t *playlist_config = NULL;
+   playlist_t *playlist               = playlist_get_cached();
+   settings_t *settings               = config_get_ptr();
+   bool scan_record_valid             = false;
+   const char *msg_prefix             = NULL;
+   const char *msg_subject            = NULL;
+   const char *log_text               = NULL;
+   char system_name[256];
+
+   system_name[0] = '\0';
+
+   if (!playlist || !settings)
+      return -1;
+
+   playlist_config = playlist_get_config(playlist);
+
+   if (!playlist_config || string_is_empty(playlist_config->path))
+      return -1;
+
+   /* Configure manual scan using playlist record */
+   switch (manual_content_scan_set_menu_from_playlist(playlist,
+         settings->paths.path_content_database,
+         settings->bools.show_hidden_files))
+   {
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_OK:
+         scan_record_valid = true;
+         break;
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_INVALID_CONTENT_DIR:
+         msg_prefix  = msg_hash_to_str(MSG_PLAYLIST_MANAGER_REFRESH_INVALID_CONTENT_DIR);
+         msg_subject = playlist_get_scan_content_dir(playlist);
+         log_text    = "[Playlist Refresh]: Invalid content directory: %s\n";
+         break;
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_INVALID_SYSTEM_NAME:
+         {
+            const char *playlist_file = NULL;
+
+            if ((playlist_file = path_basename(playlist_config->path)))
+            {
+               strlcpy(system_name, playlist_file, sizeof(system_name));
+               path_remove_extension(system_name);
+            }
+
+            msg_prefix  = msg_hash_to_str(MSG_PLAYLIST_MANAGER_REFRESH_INVALID_SYSTEM_NAME);
+            msg_subject = system_name;
+            log_text    = "[Playlist Refresh]: Invalid system name: %s\n";
+         }
+         break;
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_INVALID_CORE:
+         msg_prefix  = msg_hash_to_str(MSG_PLAYLIST_MANAGER_REFRESH_INVALID_CORE);
+         msg_subject = playlist_get_default_core_name(playlist);
+         log_text    = "[Playlist Refresh]: Invalid core name: %s\n";
+         break;
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_INVALID_DAT_FILE:
+         msg_prefix  = msg_hash_to_str(MSG_PLAYLIST_MANAGER_REFRESH_INVALID_DAT_FILE);
+         msg_subject = playlist_get_scan_dat_file_path(playlist);
+         log_text    = "[Playlist Refresh]: Invalid arcade dat file: %s\n";
+         break;
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_DAT_FILE_TOO_LARGE:
+         msg_prefix  = msg_hash_to_str(MSG_PLAYLIST_MANAGER_REFRESH_DAT_FILE_TOO_LARGE);
+         msg_subject = playlist_get_scan_dat_file_path(playlist);
+         log_text    = "[Playlist Refresh]: Arcade dat file too large: %s\n";
+         break;
+      case MANUAL_CONTENT_SCAN_PLAYLIST_REFRESH_MISSING_CONFIG:
+      default:
+         msg_prefix  = msg_hash_to_str(MSG_PLAYLIST_MANAGER_REFRESH_MISSING_CONFIG);
+         msg_subject = path_basename(playlist_config->path);
+         log_text    = "[Playlist Refresh]: No scan record found: %s\n";
+         break;
+   }
+
+   /* Log errors in the event of an invalid
+    * scan record */
+   if (!scan_record_valid)
+   {
+      char msg[PATH_MAX_LENGTH];
+      msg[0] = '\0';
+
+      if (string_is_empty(msg_subject))
+         msg_subject = msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NOT_AVAILABLE);
+
+      snprintf(msg, sizeof(msg), "%s%s", msg_prefix, msg_subject);
+
+      RARCH_ERR(log_text, msg_subject);
+      runloop_msg_queue_push(msg, 1, 150, true,
+            NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+
+      /* Even though this is a failure condition, we
+       * return 0 here to suppress any refreshing of
+       * the menu (this can appear ugly, depending
+       * on the active menu driver...) */
+      return 0;
+   }
+
+   /* Perform manual scan
+    * > Since we are refreshing the playlist,
+    *   additionally ensure that all pertinent
+    *   'playlist_config' parameters are synchronised
+    *   with the current settings struct */
+   playlist_config->capacity            = COLLECTION_SIZE;
+   playlist_config->old_format          = settings->bools.playlist_use_old_format;
+   playlist_config->compress            = settings->bools.playlist_compression;
+   playlist_config->fuzzy_archive_match = settings->bools.playlist_fuzzy_archive_match;
+   playlist_config_set_base_content_directory(playlist_config,
+         settings->bools.playlist_portable_paths ?
+               settings->paths.directory_menu_content : NULL);
+
+   task_push_manual_content_scan(playlist_config,
+         settings->paths.directory_playlist);
    return 0;
 }
 
@@ -7740,6 +7856,7 @@ static int menu_cbs_init_bind_ok_compare_label(menu_file_list_cbs_t *cbs,
          {MENU_ENUM_LABEL_PLAYLIST_MANAGER_SETTINGS,           action_ok_push_playlist_manager_settings},
          {MENU_ENUM_LABEL_PLAYLIST_MANAGER_RESET_CORES,        action_ok_playlist_reset_cores},
          {MENU_ENUM_LABEL_PLAYLIST_MANAGER_CLEAN_PLAYLIST,     action_ok_playlist_clean},
+         {MENU_ENUM_LABEL_PLAYLIST_MANAGER_REFRESH_PLAYLIST,   action_ok_playlist_refresh},
          {MENU_ENUM_LABEL_RECORDING_SETTINGS,                  action_ok_push_recording_settings_list},
          {MENU_ENUM_LABEL_INPUT_HOTKEY_BINDS,                  action_ok_push_input_hotkey_binds_list},
          {MENU_ENUM_LABEL_ACCOUNTS_RETRO_ACHIEVEMENTS,         action_ok_push_accounts_cheevos_list},

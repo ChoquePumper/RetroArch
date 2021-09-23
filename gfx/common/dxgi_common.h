@@ -2,10 +2,8 @@
 
 #include <retro_inline.h>
 
-#ifndef __WINRT__
 #ifndef HAVE_DXGI_HDR
 #define HAVE_DXGI_HDR
-#endif
 #endif
 
 #ifdef HAVE_DXGI_HDR
@@ -22,10 +20,11 @@
 typedef struct ALIGN(16)
 {
    math_matrix_4x4   mvp;
-   float             contrast;       /* 2.0f    */
-   float             paperWhiteNits; /* 200.0f  */
-   float             maxNits;        /* 1000.0f */
-   float             expandGamut;    /* 1.0f    */
+   float             contrast;         /* 2.0f    */
+   float             paper_white_nits; /* 200.0f  */
+   float             max_nits;         /* 1000.0f */
+   float             expand_gamut;     /* 1.0f    */
+   float             inverse_tonemap; /* 1.0f    */
 } dxgi_hdr_uniform_t;
 
 enum dxgi_swapchain_bit_depth
@@ -501,6 +500,12 @@ static INLINE BOOL DXGIIsCurrent(DXGIFactory factory)
 {
    return factory->lpVtbl->IsCurrent(factory);
 }
+#ifdef __WINRT__
+static INLINE BOOL DXGIIsCurrent2(DXGIFactory2 factory)
+{
+   return factory->lpVtbl->IsCurrent(factory);
+}
+#endif
 static INLINE ULONG DXGIReleaseAdapter(DXGIAdapter adapter)
 {
    return adapter->lpVtbl->Release(adapter);

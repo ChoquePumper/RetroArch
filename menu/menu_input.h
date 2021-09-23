@@ -225,6 +225,18 @@ typedef struct menu_input_ctx_hitbox
    int32_t y2;
 } menu_input_ctx_hitbox_t;
 
+typedef struct key_desc
+{
+   /* libretro key id */
+   unsigned key;
+
+   /* description */
+   char desc[32];
+} key_desc_t;
+
+/* TODO/FIXME - public global variables */
+extern struct key_desc key_descriptors[RARCH_MAX_KEYS];
+
 /**
  * Copy parameters from the global menu_input_state to a menu_input_pointer_t
  * in order to provide access to all pointer device parameters.
@@ -285,6 +297,11 @@ bool menu_input_key_bind_poll_find_hold(
       unsigned max_users,
       struct menu_bind_state *new_state,
       struct retro_keybind * output);
+
+void menu_input_set_pointer_visibility(
+      menu_input_pointer_hw_state_t *pointer_hw_state,
+      menu_input_t *menu_input,
+      retro_time_t current_time);
 
 RETRO_END_DECLS
 

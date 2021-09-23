@@ -56,7 +56,6 @@
 #endif
 
 #define SHADER_FILE_WATCH_DELAY_MSEC 500
-#define HOLD_BTN_DELAY_SEC 2
 
 #define QUIT_DELAY_USEC 3 * 1000000 /* 3 seconds */
 
@@ -82,8 +81,6 @@
 
 #define MENU_SOUND_FORMATS "ogg|mod|xm|s3m|mp3|flac|wav"
 
-#define MIDI_DRIVER_BUF_SIZE 4096
-
 /**
  * db_to_gain:
  * @db          : Decibels.
@@ -96,13 +93,6 @@
 
 #define DEFAULT_NETWORK_GAMEPAD_PORT 55400
 #define UDP_FRAME_PACKETS 16
-
-#ifdef HAVE_OVERLAY
-#define OVERLAY_GET_KEY(state, key) (((state)->keys[(key) / 32] >> ((key) % 32)) & 1)
-#define OVERLAY_SET_KEY(state, key) (state)->keys[(key) / 32] |= 1 << ((key) % 32)
-
-#define MAX_VISIBILITY 32
-#endif
 
 #ifdef HAVE_THREADS
 #define VIDEO_DRIVER_IS_THREADED_INTERNAL() ((!video_driver_is_hw_context() && p_rarch->video_driver_threaded) ? true : false)
@@ -158,29 +148,11 @@
 
 #define VIDEO_DRIVER_GET_HW_CONTEXT_INTERNAL(p_rarch) (&p_rarch->hw_render)
 
-#ifdef HAVE_THREADS
-#define RUNLOOP_MSG_QUEUE_LOCK(runloop) slock_lock(runloop.msg_queue_lock)
-#define RUNLOOP_MSG_QUEUE_UNLOCK(runloop) slock_unlock(runloop.msg_queue_lock)
-#else
-#define RUNLOOP_MSG_QUEUE_LOCK(p_runloop)
-#define RUNLOOP_MSG_QUEUE_UNLOCK(p_runloop)
-#endif
-
 #ifdef HAVE_BSV_MOVIE
 #define BSV_MOVIE_IS_EOF(p_rarch) || (p_rarch->bsv_movie_state.movie_end && p_rarch->bsv_movie_state.eof_exit)
 #else
 #define BSV_MOVIE_IS_EOF(p_rarch)
 #endif
-
-/* Time to exit out of the main loop?
- * Reasons for exiting:
- * a) Shutdown environment callback was invoked.
- * b) Quit key was pressed.
- * c) Frame count exceeds or equals maximum amount of frames to run.
- * d) Video driver no longer alive.
- * e) End of BSV movie and BSV EOF exit is true. (TODO/FIXME - explain better)
- */
-#define TIME_TO_EXIT(quit_key_pressed) (runloop_state.shutdown_initiated || quit_key_pressed || !is_alive BSV_MOVIE_IS_EOF(p_rarch) || ((runloop_state.max_frames != 0) && (frame_count >= runloop_state.max_frames)) || runloop_exec)
 
 /* Depends on ASCII character values */
 #define ISPRINT(c) (((int)(c) >= ' ' && (int)(c) <= '~') ? 1 : 0)
@@ -822,24 +794,6 @@ static const wifi_driver_t *wifi_drivers[] = {
    NULL,
 };
 
-static location_driver_t location_null = {
-   NULL,
-   NULL,
-   NULL,
-   NULL,
-   NULL,
-   NULL,
-   "null",
-};
-
-static const location_driver_t *location_drivers[] = {
-#ifdef ANDROID
-   &location_android,
-#endif
-   &location_null,
-   NULL,
-};
-
 static ui_companion_driver_t ui_companion_null = {
    NULL, /* init */
    NULL, /* deinit */
@@ -886,42 +840,6 @@ static const record_driver_t *record_drivers[] = {
 #endif
    &record_null,
    NULL,
-};
-
-extern midi_driver_t midi_winmm;
-extern midi_driver_t midi_alsa;
-
-static void null_midi_free(void *p) { }
-static void *null_midi_init(const char *input, const char *output) { return (void*)-1; }
-static bool null_midi_get_avail_inputs(struct string_list *inputs) { union string_list_elem_attr attr = {0}; return string_list_append(inputs, "Null", attr); }
-static bool null_midi_get_avail_outputs(struct string_list *outputs) { union string_list_elem_attr attr = {0}; return string_list_append(outputs, "Null", attr); }
-static bool null_midi_set_input(void *p, const char *input) { return input == NULL || string_is_equal(input, "Null"); }
-static bool null_midi_set_output(void *p, const char *output) { return output == NULL || string_is_equal(output, "Null"); }
-static bool null_midi_read(void *p, midi_event_t *event) { return false; }
-static bool null_midi_write(void *p, const midi_event_t *event) { return true; }
-static bool null_midi_flush(void *p) { return true; }
-
-static midi_driver_t midi_null = {
-   "null",
-   null_midi_get_avail_inputs,
-   null_midi_get_avail_outputs,
-   null_midi_init,
-   null_midi_free,
-   null_midi_set_input,
-   null_midi_set_output,
-   null_midi_read,
-   null_midi_write,
-   null_midi_flush
-};
-
-static midi_driver_t *midi_drivers[] = {
-#if defined(HAVE_ALSA) && !defined(HAVE_HAKCHI) && !defined(HAVE_SEGAM) && !defined(DINGUX)
-   &midi_alsa,
-#endif
-#ifdef HAVE_WINMM
-   &midi_winmm,
-#endif
-   &midi_null
 };
 
 static void *nullcamera_init(const char *device, uint64_t caps,
@@ -990,15 +908,6 @@ enum
    RA_OPT_LOAD_MENU_ON_ERROR
 };
 
-enum  runloop_state
-{
-   RUNLOOP_STATE_ITERATE = 0,
-   RUNLOOP_STATE_POLLED_AND_SLEEP,
-   RUNLOOP_STATE_MENU_ITERATE,
-   RUNLOOP_STATE_END,
-   RUNLOOP_STATE_QUIT
-};
-
 enum rarch_movie_type
 {
    RARCH_MOVIE_PLAYBACK = 0,
@@ -1013,13 +922,6 @@ enum poll_type_override_t
    POLL_TYPE_OVERRIDE_LATE
 };
 
-enum auto_shader_operation
-{
-   AUTO_SHADER_OP_SAVE = 0,
-   AUTO_SHADER_OP_REMOVE,
-   AUTO_SHADER_OP_EXISTS
-};
-
 enum input_game_focus_cmd_type
 {
    GAME_FOCUS_CMD_OFF = 0,
@@ -1027,65 +929,6 @@ enum input_game_focus_cmd_type
    GAME_FOCUS_CMD_TOGGLE,
    GAME_FOCUS_CMD_REAPPLY
 };
-
-typedef struct runloop_ctx_msg_info
-{
-   const char *msg;
-   unsigned prio;
-   unsigned duration;
-   bool flush;
-} runloop_ctx_msg_info_t;
-
-typedef struct
-{
-   unsigned priority;
-   float duration;
-   char str[128];
-   bool set;
-} runloop_core_status_msg_t;
-
-struct rarch_dir_shader_list
-{
-   struct string_list *shader_list;
-   char *directory;
-   size_t selection;
-   bool shader_loaded;
-   bool remember_last_preset_dir;
-};
-
-#ifdef HAVE_BSV_MOVIE
-struct bsv_state
-{
-   /* Movie playback/recording support. */
-   char movie_path[PATH_MAX_LENGTH];
-   /* Immediate playback/recording. */
-   char movie_start_path[PATH_MAX_LENGTH];
-
-   bool movie_start_recording;
-   bool movie_start_playback;
-   bool movie_playback;
-   bool eof_exit;
-   bool movie_end;
-
-};
-
-struct bsv_movie
-{
-   intfstream_t *file;
-   uint8_t *state;
-   /* A ring buffer keeping track of positions
-    * in the file for each frame. */
-   size_t *frame_pos;
-   size_t frame_mask;
-   size_t frame_ptr;
-   size_t min_file_pos;
-   size_t state_size;
-
-   bool playback;
-   bool first_rewind;
-   bool did_rewind;
-};
-#endif
 
 typedef struct video_pixel_scaler
 {
@@ -1099,46 +942,6 @@ typedef struct
    enum gfx_ctx_api api;
 } gfx_api_gpu_map;
 
-struct remote_message
-{
-   int port;
-   int device;
-   int index;
-   int id;
-   uint16_t state;
-};
-
-struct input_remote
-{
-#if defined(HAVE_NETWORKING) && defined(HAVE_NETWORKGAMEPAD)
-   int net_fd[MAX_USERS];
-#endif
-   bool state[RARCH_BIND_LIST_END];
-};
-
-#ifdef HAVE_BSV_MOVIE
-typedef struct bsv_movie bsv_movie_t;
-#endif
-
-typedef struct input_remote input_remote_t;
-
-typedef struct input_remote_state
-{
-   /* This is a bitmask of (1 << key_bind_id). */
-   uint64_t buttons[MAX_USERS];
-   /* Left X, Left Y, Right X, Right Y */
-   int16_t analog[4][MAX_USERS];
-} input_remote_state_t;
-
-typedef struct input_list_element_t
-{
-   int16_t *state;
-   unsigned port;
-   unsigned device;
-   unsigned index;
-   unsigned int state_size;
-} input_list_element;
-
 typedef void *(*constructor_t)(void);
 typedef void  (*destructor_t )(void*);
 
@@ -1150,38 +953,6 @@ typedef struct my_list_t
    int capacity;
    int size;
 } my_list;
-
-#ifdef HAVE_OVERLAY
-typedef struct input_overlay_state
-{
-   uint32_t keys[RETROK_LAST / 32 + 1];
-   /* Left X, Left Y, Right X, Right Y */
-   int16_t analog[4];
-   /* This is a bitmask of (1 << key_bind_id). */
-   input_bits_t buttons;
-} input_overlay_state_t;
-
-struct input_overlay
-{
-   struct overlay *overlays;
-   const struct overlay *active;
-   void *iface_data;
-   const video_overlay_interface_t *iface;
-   input_overlay_state_t overlay_state;
-
-   size_t index;
-   size_t size;
-
-   unsigned next_index;
-
-   enum overlay_status state;
-
-   bool enable;
-   bool blocked;
-   bool alive;
-};
-#endif
-
 
 typedef struct turbo_buttons turbo_buttons_t;
 
@@ -1195,21 +966,6 @@ struct turbo_buttons
    bool mode1_enable[MAX_USERS];
 };
 
-struct input_keyboard_line
-{
-   char *buffer;
-   void *userdata;
-   /** Line complete callback.
-    * Calls back after return is
-    * pressed with the completed line.
-    * Line can be NULL.
-    **/
-   input_keyboard_line_complete_t cb;
-   size_t ptr;
-   size_t size;
-   bool enabled;
-};
-
 typedef struct input_game_focus_state
 {
    bool enabled;
@@ -1219,18 +975,6 @@ typedef struct input_game_focus_state
 #ifdef HAVE_RUNAHEAD
 typedef bool(*runahead_load_state_function)(const void*, size_t);
 #endif
-
-typedef struct input_mapper
-{
-   /* Left X, Left Y, Right X, Right Y */
-   int16_t analog_value[MAX_USERS][8];
-   /* The whole keyboard state */
-   uint32_t keys[RETROK_LAST / 32 + 1];
-   /* RetroPad button state of remapped keyboard keys */
-   unsigned key_button[RETROK_LAST];
-   /* This is a bitmask of (1 << key_bind_id). */
-   input_bits_t buttons[MAX_USERS];
-} input_mapper_t;
 
 #ifdef HAVE_DISCORD
 /* The Discord API specifies these variables:
@@ -1265,83 +1009,6 @@ struct discord_state
 typedef struct discord_state discord_state_t;
 #endif
 
-/* Contains all callbacks associated with
- * core options.
- * > At present there is only a single
- *   callback, 'update_display' - but we
- *   may wish to add more in the future
- *   (e.g. for directly informing a core of
- *   core option value changes, or getting/
- *   setting extended/non-standard option
- *   value data types) */
-typedef struct core_options_callbacks
-{
-   retro_core_options_update_display_callback_t update_display;
-} core_options_callbacks_t;
-
-/* Contains the current retro_fastforwarding_override
- * parameters along with any pending updates triggered
- * by RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE */
-typedef struct fastmotion_overrides
-{
-   struct retro_fastforwarding_override current;
-   struct retro_fastforwarding_override next;
-   bool pending;
-} fastmotion_overrides_t;
-
-struct runloop
-{
-   retro_usec_t frame_time_last;        /* int64_t alignment */
-
-   msg_queue_t msg_queue;                        /* ptr alignment */
-#ifdef HAVE_THREADS
-   slock_t *msg_queue_lock;
-#endif
-   size_t msg_queue_size;
-
-   core_option_manager_t *core_options;
-   core_options_callbacks_t core_options_callback; /* ptr alignment */
-
-   retro_keyboard_event_t key_event;             /* ptr alignment */
-   retro_keyboard_event_t frontend_key_event;    /* ptr alignment */
-
-   rarch_system_info_t system;                   /* ptr alignment */
-   struct retro_frame_time_callback frame_time;  /* ptr alignment */
-   struct retro_audio_buffer_status_callback audio_buffer_status; /* ptr alignment */
-   unsigned pending_windowed_scale;
-   unsigned max_frames;
-   unsigned audio_latency;
-
-   fastmotion_overrides_t fastmotion_override; /* float alignment */
-
-   bool missing_bios;
-   bool force_nonblock;
-   bool paused;
-   bool idle;
-   bool focused;
-   bool slowmotion;
-   bool fastmotion;
-   bool shutdown_initiated;
-   bool core_shutdown_initiated;
-   bool core_running;
-   bool perfcnt_enable;
-   bool game_options_active;
-   bool folder_options_active;
-   bool autosave;
-#ifdef HAVE_CONFIGFILE
-   bool overrides_active;
-#endif
-   bool remaps_core_active;
-   bool remaps_game_active;
-   bool remaps_content_dir_active;
-#ifdef HAVE_SCREENSHOTS
-   bool max_frames_screenshot;
-   char max_frames_screenshot_path[PATH_MAX_LENGTH];
-#endif
-};
-
-typedef struct runloop runloop_state_t;
-
 struct rarch_state
 {
    input_driver_state_t input_driver_state;
@@ -1359,26 +1026,14 @@ struct rarch_state
    retro_time_t video_driver_frame_time_samples[
       MEASURE_FRAME_TIME_SAMPLES_COUNT];
    struct global              g_extern;         /* retro_time_t alignment */
-#ifdef HAVE_MENU
-   menu_input_t menu_input_state;               /* retro_time_t alignment */
-#endif
-
-
-
 #if defined(HAVE_CG) || defined(HAVE_GLSL) || defined(HAVE_SLANG) || defined(HAVE_HLSL)
    rarch_timer_t shader_delay_timer;            /* int64_t alignment */
 #endif
 #ifdef HAVE_DISCORD
    discord_state_t discord_st;                  /* int64_t alignment */
 #endif
-#ifdef HAVE_MENU
-   struct menu_state menu_driver_state;         /* int64_t alignment */
-#endif
 #ifdef HAVE_GFX_WIDGETS
    dispgfx_widget_t dispwidget_st;              /* uint64_t alignment */
-#endif
-#ifdef HAVE_MENU
-   struct menu_bind_state menu_input_binds;     /* uint64_t alignment */
 #endif
    struct retro_core_t        current_core;     /* uint64_t alignment */
 #if defined(HAVE_RUNAHEAD)
@@ -1396,20 +1051,15 @@ struct rarch_state
    uint64_t video_driver_frame_time_count;
    uint64_t video_driver_frame_count;
    struct retro_camera_callback camera_cb;    /* uint64_t alignment */
-   gfx_animation_t anim;                      /* uint64_t alignment */
    gfx_thumbnail_state_t gfx_thumb_state;     /* uint64_t alignment */
 #if defined(HAVE_NETWORKING) && defined(HAVE_NETWORKGAMEPAD)
    input_remote_state_t remote_st_ptr;        /* uint64_t alignment */
 #endif
 
    struct string_list *subsystem_fullpaths;
-   struct string_list *midi_drv_inputs;
-   struct string_list *midi_drv_outputs;
    struct string_list *audio_driver_devices_list;
 
    uint8_t *video_driver_record_gpu_buffer;
-   uint8_t *midi_drv_input_buffer;
-   uint8_t *midi_drv_output_buffer;
    bool    *load_no_content_hook;
    float   *audio_driver_output_samples_buf;
    char    *osk_grid[45];
@@ -1418,9 +1068,6 @@ struct rarch_state
    char    *secondary_library_path;
 #endif
    retro_ctx_load_content_info_t *load_content_info;
-#endif
-#ifdef HAVE_MENU
-   const char **menu_input_dialog_keyboard_buffer;
 #endif
 
    const record_driver_t *recording_driver;
@@ -1434,8 +1081,6 @@ struct rarch_state
    const camera_driver_t *camera_driver;
    void *camera_data;
 
-   void *midi_drv_data;
-
    const ui_companion_driver_t *ui_companion;
    void *ui_companion_data;
 
@@ -1443,8 +1088,6 @@ struct rarch_state
    void *ui_companion_qt_data;
 #endif
 
-   const location_driver_t *location_driver;
-   void *location_data;
 
    const bluetooth_driver_t *bluetooth_driver;
    void *bluetooth_data;
@@ -1509,11 +1152,6 @@ struct rarch_state
    const void *hid_data;
 #endif
    settings_t *configuration_settings;
-#ifdef HAVE_MENU
-   menu_handle_t *menu_driver_data;
-   void *menu_userdata;
-   const menu_ctx_driver_t *menu_driver_ctx;
-#endif
 #ifdef HAVE_NETWORKING
    /* Used while Netplay is running */
    netplay_t *netplay_data;
@@ -1542,9 +1180,6 @@ struct rarch_state
 
    gfx_ctx_driver_t current_video_context;               /* ptr alignment */
    content_state_t            content_st;                /* ptr alignment */
-   midi_event_t midi_drv_input_event;                    /* ptr alignment */
-   midi_event_t midi_drv_output_event;                   /* ptr alignment */
-   core_info_state_t core_info_st;                       /* ptr alignment */
    struct retro_hw_render_callback hw_render;            /* ptr alignment */
 #ifdef HAVE_BSV_MOVIE
    bsv_movie_t     *bsv_movie_state_handle;              /* ptr alignment */
@@ -1644,18 +1279,10 @@ struct rarch_state
    input_device_info_t input_device_info[MAX_INPUT_DEVICES];
    input_mouse_info_t input_mouse_info[MAX_INPUT_DEVICES];
                                           /* unsigned alignment */
-#ifdef HAVE_MENU
-   menu_dialog_t dialog_st;               /* unsigned alignment */
-#endif
 #ifdef HAVE_THREAD_STORAGE
    sthread_tls_t rarch_tls;               /* unsigned alignment */
 #endif
    unsigned fastforward_after_frames;
-
-#ifdef HAVE_MENU
-   unsigned menu_input_dialog_keyboard_type;
-   unsigned menu_input_dialog_keyboard_idx;
-#endif
 
    unsigned recording_width;
    unsigned recording_height;
@@ -1670,7 +1297,6 @@ struct rarch_state
    unsigned video_driver_height;
    unsigned osk_last_codepoint;
    unsigned osk_last_codepoint_len;
-   unsigned input_driver_flushing_input;
    unsigned input_hotkey_block_counter;
 #ifdef HAVE_ACCESSIBILITY
    unsigned gamepad_input_override;
@@ -1687,6 +1313,7 @@ struct rarch_state
    float *audio_driver_input_data;
    float video_driver_core_hz;
    float video_driver_aspect_ratio;
+   float video_refresh_rate_original;
 
 #ifdef HAVE_AUDIOMIXER
    float audio_driver_mixer_volume_gain;
@@ -1715,14 +1342,6 @@ struct rarch_state
 #endif
    enum resampler_quality audio_driver_resampler_quality;
 
-#ifdef HAVE_MENU
-   menu_input_pointer_hw_state_t menu_input_pointer_hw_state;
-                                                /* int16_t alignment */
-#endif
-
-#ifdef HAVE_MENU
-   unsigned char menu_keyboard_key_state[RETROK_LAST];
-#endif
    /**
     * dynamic.c:dynamic_request_hw_context will try to set flag data when the context
     * is in the middle of being rebuilt; in these cases we will save flag
@@ -1745,10 +1364,6 @@ struct rarch_state
    char video_driver_gpu_device_string[128];
    char video_driver_gpu_api_version_string[128];
    char error_string[255];
-#ifdef HAVE_MENU
-   char menu_input_dialog_keyboard_label_setting[256];
-   char menu_input_dialog_keyboard_label[256];
-#endif
    char video_driver_window_title[512];
 #ifdef HAVE_NETWORKING
    char server_address_deferred[512];
@@ -1920,7 +1535,6 @@ struct rarch_state
    input_game_focus_state_t game_focus_state; /* bool alignment */
 
 #ifdef HAVE_MENU
-   bool menu_input_dialog_keyboard_display;
    /* Is the menu driver still running? */
    bool menu_driver_alive;
    /* Are we binding a button inside the menu? */
@@ -1930,10 +1544,6 @@ struct rarch_state
    bool recording_enable;
    bool streaming_enable;
 
-   bool midi_drv_input_enabled;
-   bool midi_drv_output_enabled;
-
-   bool midi_drv_output_pending;
 
    bool main_ui_companion_is_on_foreground;
    bool keyboard_mapping_blocked;
@@ -1961,20 +1571,11 @@ static struct rarch_state         rarch_st;
 static const void *MAGIC_POINTER                                 = (void*)(uintptr_t)0x0DEFACED;
 #endif
 
-static runloop_core_status_msg_t runloop_core_status_msg         =
-{
-   0,
-   0.0f,
-   "",
-   false
-};
-
 #ifdef HAVE_LIBNX
 /* TODO/FIXME - public global variable */
 extern u32 __nx_applet_type;
 #endif
 
-static midi_driver_t *midi_drv                                   = &midi_null;
 static const video_display_server_t *current_display_server      = &dispserv_null;
 
 struct aspect_ratio_elem aspectratio_lut[ASPECT_RATIO_END] = {
@@ -2021,228 +1622,3 @@ unsigned subsystem_current_count                                = 0;
 struct retro_keybind input_config_binds[MAX_USERS][RARCH_BIND_LIST_END];
 struct retro_keybind input_autoconf_binds[MAX_USERS][RARCH_BIND_LIST_END];
 struct retro_subsystem_info subsystem_data[SUBSYSTEM_MAX_SUBSYSTEMS];
-
-#ifdef HAVE_MENU
-/* TODO/FIXME - public global variables */
-struct key_desc key_descriptors[RARCH_MAX_KEYS] =
-{
-   {RETROK_FIRST,         "Unmapped"},
-   {RETROK_BACKSPACE,     "Backspace"},
-   {RETROK_TAB,           "Tab"},
-   {RETROK_CLEAR,         "Clear"},
-   {RETROK_RETURN,        "Return"},
-   {RETROK_PAUSE,         "Pause"},
-   {RETROK_ESCAPE,        "Escape"},
-   {RETROK_SPACE,         "Space"},
-   {RETROK_EXCLAIM,       "!"},
-   {RETROK_QUOTEDBL,      "\""},
-   {RETROK_HASH,          "#"},
-   {RETROK_DOLLAR,        "$"},
-   {RETROK_AMPERSAND,     "&"},
-   {RETROK_QUOTE,         "\'"},
-   {RETROK_LEFTPAREN,     "("},
-   {RETROK_RIGHTPAREN,    ")"},
-   {RETROK_ASTERISK,      "*"},
-   {RETROK_PLUS,          "+"},
-   {RETROK_COMMA,         ","},
-   {RETROK_MINUS,         "-"},
-   {RETROK_PERIOD,        "."},
-   {RETROK_SLASH,         "/"},
-   {RETROK_0,             "0"},
-   {RETROK_1,             "1"},
-   {RETROK_2,             "2"},
-   {RETROK_3,             "3"},
-   {RETROK_4,             "4"},
-   {RETROK_5,             "5"},
-   {RETROK_6,             "6"},
-   {RETROK_7,             "7"},
-   {RETROK_8,             "8"},
-   {RETROK_9,             "9"},
-   {RETROK_COLON,         ":"},
-   {RETROK_SEMICOLON,     ";"},
-   {RETROK_LESS,          "<"},
-   {RETROK_EQUALS,        "="},
-   {RETROK_GREATER,       ">"},
-   {RETROK_QUESTION,      "?"},
-   {RETROK_AT,            "@"},
-   {RETROK_LEFTBRACKET,   "["},
-   {RETROK_BACKSLASH,     "\\"},
-   {RETROK_RIGHTBRACKET,  "]"},
-   {RETROK_CARET,         "^"},
-   {RETROK_UNDERSCORE,    "_"},
-   {RETROK_BACKQUOTE,     "`"},
-   {RETROK_a,             "A"},
-   {RETROK_b,             "B"},
-   {RETROK_c,             "C"},
-   {RETROK_d,             "D"},
-   {RETROK_e,             "E"},
-   {RETROK_f,             "F"},
-   {RETROK_g,             "G"},
-   {RETROK_h,             "H"},
-   {RETROK_i,             "I"},
-   {RETROK_j,             "J"},
-   {RETROK_k,             "K"},
-   {RETROK_l,             "L"},
-   {RETROK_m,             "M"},
-   {RETROK_n,             "N"},
-   {RETROK_o,             "O"},
-   {RETROK_p,             "P"},
-   {RETROK_q,             "Q"},
-   {RETROK_r,             "R"},
-   {RETROK_s,             "S"},
-   {RETROK_t,             "T"},
-   {RETROK_u,             "U"},
-   {RETROK_v,             "V"},
-   {RETROK_w,             "W"},
-   {RETROK_x,             "X"},
-   {RETROK_y,             "Y"},
-   {RETROK_z,             "Z"},
-   {RETROK_DELETE,        "Delete"},
-
-   {RETROK_KP0,           "Numpad 0"},
-   {RETROK_KP1,           "Numpad 1"},
-   {RETROK_KP2,           "Numpad 2"},
-   {RETROK_KP3,           "Numpad 3"},
-   {RETROK_KP4,           "Numpad 4"},
-   {RETROK_KP5,           "Numpad 5"},
-   {RETROK_KP6,           "Numpad 6"},
-   {RETROK_KP7,           "Numpad 7"},
-   {RETROK_KP8,           "Numpad 8"},
-   {RETROK_KP9,           "Numpad 9"},
-   {RETROK_KP_PERIOD,     "Numpad ."},
-   {RETROK_KP_DIVIDE,     "Numpad /"},
-   {RETROK_KP_MULTIPLY,   "Numpad *"},
-   {RETROK_KP_MINUS,      "Numpad -"},
-   {RETROK_KP_PLUS,       "Numpad +"},
-   {RETROK_KP_ENTER,      "Numpad Enter"},
-   {RETROK_KP_EQUALS,     "Numpad ="},
-
-   {RETROK_UP,            "Up"},
-   {RETROK_DOWN,          "Down"},
-   {RETROK_RIGHT,         "Right"},
-   {RETROK_LEFT,          "Left"},
-   {RETROK_INSERT,        "Insert"},
-   {RETROK_HOME,          "Home"},
-   {RETROK_END,           "End"},
-   {RETROK_PAGEUP,        "Page Up"},
-   {RETROK_PAGEDOWN,      "Page Down"},
-
-   {RETROK_F1,            "F1"},
-   {RETROK_F2,            "F2"},
-   {RETROK_F3,            "F3"},
-   {RETROK_F4,            "F4"},
-   {RETROK_F5,            "F5"},
-   {RETROK_F6,            "F6"},
-   {RETROK_F7,            "F7"},
-   {RETROK_F8,            "F8"},
-   {RETROK_F9,            "F9"},
-   {RETROK_F10,           "F10"},
-   {RETROK_F11,           "F11"},
-   {RETROK_F12,           "F12"},
-   {RETROK_F13,           "F13"},
-   {RETROK_F14,           "F14"},
-   {RETROK_F15,           "F15"},
-
-   {RETROK_NUMLOCK,       "Num Lock"},
-   {RETROK_CAPSLOCK,      "Caps Lock"},
-   {RETROK_SCROLLOCK,     "Scroll Lock"},
-   {RETROK_RSHIFT,        "Right Shift"},
-   {RETROK_LSHIFT,        "Left Shift"},
-   {RETROK_RCTRL,         "Right Control"},
-   {RETROK_LCTRL,         "Left Control"},
-   {RETROK_RALT,          "Right Alt"},
-   {RETROK_LALT,          "Left Alt"},
-   {RETROK_RMETA,         "Right Meta"},
-   {RETROK_LMETA,         "Left Meta"},
-   {RETROK_RSUPER,        "Right Super"},
-   {RETROK_LSUPER,        "Left Super"},
-   {RETROK_MODE,          "Mode"},
-   {RETROK_COMPOSE,       "Compose"},
-
-   {RETROK_HELP,          "Help"},
-   {RETROK_PRINT,         "Print"},
-   {RETROK_SYSREQ,        "Sys Req"},
-   {RETROK_BREAK,         "Break"},
-   {RETROK_MENU,          "Menu"},
-   {RETROK_POWER,         "Power"},
-   {RETROK_EURO,          {-30, -126, -84, 0}}, /* "�" */
-   {RETROK_UNDO,          "Undo"},
-   {RETROK_OEM_102,       "OEM-102"}
-};
-
-static void *null_menu_init(void **userdata, bool video_is_threaded)
-{
-   menu_handle_t *menu = (menu_handle_t*)calloc(1, sizeof(*menu));
-   if (!menu)
-      return NULL;
-   return menu;
-}
-
-static int null_menu_list_bind_init(menu_file_list_cbs_t *cbs,
-      const char *path, const char *label, unsigned type, size_t idx) { return 0; }
-
-static menu_ctx_driver_t menu_ctx_null = {
-  NULL,  /* set_texture */
-  NULL,  /* render_messagebox */
-  NULL,  /* render */
-  NULL,  /* frame */
-  null_menu_init,
-  NULL,  /* free */
-  NULL,  /* context_reset */
-  NULL,  /* context_destroy */
-  NULL,  /* populate_entries */
-  NULL,  /* toggle */
-  NULL,  /* navigation_clear */
-  NULL,  /* navigation_decrement */
-  NULL,  /* navigation_increment */
-  NULL,  /* navigation_set */
-  NULL,  /* navigation_set_last */
-  NULL,  /* navigation_descend_alphabet */
-  NULL,  /* navigation_ascend_alphabet */
-  NULL,  /* lists_init */
-  NULL,  /* list_insert */
-  NULL,  /* list_prepend */
-  NULL,  /* list_delete */
-  NULL,  /* list_clear */
-  NULL,  /* list_cache */
-  NULL,  /* list_push */
-  NULL,  /* list_get_selection */
-  NULL,  /* list_get_size */
-  NULL,  /* list_get_entry */
-  NULL,  /* list_set_selection */
-  null_menu_list_bind_init,
-  NULL,  /* load_image */
-  "null",
-  NULL,  /* environ */
-  NULL,  /* update_thumbnail_path */
-  NULL,  /* update_thumbnail_image */
-  NULL,  /* refresh_thumbnail_image */
-  NULL,  /* set_thumbnail_system */
-  NULL,  /* get_thumbnail_system */
-  NULL,  /* set_thumbnail_content */
-  NULL,  /* osk_ptr_at_pos */
-  NULL,  /* update_savestate_thumbnail_path */
-  NULL,  /* update_savestate_thumbnail_image */
-  NULL,  /* pointer_down */
-  NULL,  /* pointer_up   */
-  NULL   /* entry_action */
-};
-
-/* Menu drivers */
-static const menu_ctx_driver_t *menu_ctx_drivers[] = {
-#if defined(HAVE_MATERIALUI)
-   &menu_ctx_mui,
-#endif
-#if defined(HAVE_OZONE)
-   &menu_ctx_ozone,
-#endif
-#if defined(HAVE_RGUI)
-   &menu_ctx_rgui,
-#endif
-#if defined(HAVE_XMB)
-   &menu_ctx_xmb,
-#endif
-   &menu_ctx_null,
-   NULL
-};
-#endif

@@ -83,7 +83,7 @@
    else if (recvd < 0)
 
 #define NETPLAY_MAGIC 0x52414E50 /* RANP */
-
+#define POKE_MAGIC    0x504F4B45 /* POKE */
 
 /*
  * AD PACKET FORMAT:
@@ -623,7 +623,7 @@ bool netplay_lan_ad_server(netplay_t *netplay)
                         NETPLAY_HOST_STR_LEN);
                   }
 
-                  snprintf(s, sizeof(s), "%d", content_crc);
+                  snprintf(s, sizeof(s), "%ld", (long)content_crc);
                   strlcpy(ad_packet_buffer.content_crc, s,
                      NETPLAY_HOST_STR_LEN);
 
@@ -851,7 +851,7 @@ static void handshake_password(void *ignore, const char *line)
    netplay_t *netplay                    = handshake_password_netplay;
    struct netplay_connection *connection = &netplay->connections[0];
 
-   snprintf(password, sizeof(password), "%08X", connection->salt);
+   snprintf(password, sizeof(password), "%08lX", (unsigned long)connection->salt);
    if (!string_is_empty(line))
       strlcpy(password + 8, line, sizeof(password)-8);
 
@@ -872,6 +872,37 @@ static void handshake_password(void *ignore, const char *line)
 #endif
 
 /**
+ * netplay_deinit_socket_buffer
+ *
+ * Free a socket buffer.
+ */
+static void netplay_deinit_socket_buffer(struct socket_buffer *sbuf)
+{
+   if (sbuf->data)
+      free(sbuf->data);
+}
+
+
+static bool netplay_poke(netplay_t *netplay, struct netplay_connection *connection, uint32_t netplay_magic)
+{
+   if (!netplay || !netplay->is_server)
+      return false;
+   if (!connection || !connection->active)
+      return false;
+   if (netplay_magic != POKE_MAGIC)
+      return false;
+
+   socket_close(connection->fd);
+
+   connection->active = false;
+
+   netplay_deinit_socket_buffer(&connection->send_packet_buffer);
+   netplay_deinit_socket_buffer(&connection->recv_packet_buffer);
+
+   return true;
+}
+
+/**
  * netplay_handshake_init
  *
  * Data receiver for the initial part of the handshake, i.e., waiting for the
@@ -883,6 +914,7 @@ bool netplay_handshake_init(netplay_t *netplay,
    ssize_t recvd;
    struct nick_buf_s nick_buf;
    uint32_t header[6];
+   uint32_t netplay_magic                = 0;
    uint32_t local_pmagic                 = 0;
    uint32_t remote_pmagic                = 0;
    uint32_t remote_version               = 0;
@@ -898,7 +930,12 @@ bool netplay_handshake_init(netplay_t *netplay,
       goto error;
    }
 
-   if (ntohl(header[0]) != NETPLAY_MAGIC)
+   netplay_magic = ntohl(header[0]);
+
+   if (netplay_poke(netplay, connection, netplay_magic))
+      return true;
+
+   if (netplay_magic != NETPLAY_MAGIC)
    {
       dmsg = msg_hash_to_str(MSG_NETPLAY_NOT_RETROARCH);
       goto error;
@@ -1363,7 +1400,7 @@ static bool netplay_handshake_pre_password(netplay_t *netplay,
 
    /* Calculate the correct password hash(es) and compare */
    correct = false;
-   snprintf(password, sizeof(password), "%08X", connection->salt);
+   snprintf(password, sizeof(password), "%08lX", (unsigned long)connection->salt);
 
    if (settings->paths.netplay_password[0])
    {
@@ -2054,17 +2091,6 @@ static bool netplay_resize_socket_buffer(
     sbuf->bufsz    = newsize;
 
     return true;
-}
-
-/**
- * netplay_deinit_socket_buffer
- *
- * Free a socket buffer.
- */
-static void netplay_deinit_socket_buffer(struct socket_buffer *sbuf)
-{
-   if (sbuf->data)
-      free(sbuf->data);
 }
 
 #if 0
@@ -3134,7 +3160,7 @@ void netplay_sync_post_frame(netplay_t *netplay, bool stalled)
       if (netplay->catch_up)
       {
          netplay->catch_up = false;
-         input_unset_nonblock_state();
+         input_state_get_ptr()->nonblocking_flag = false;
          driver_set_nonblock_state();
       }
       return;
@@ -3327,7 +3353,7 @@ void netplay_sync_post_frame(netplay_t *netplay, bool stalled)
       if (netplay->self_frame_count + 1 >= lo_frame_count)
       {
          netplay->catch_up = false;
-         input_unset_nonblock_state();
+         input_state_get_ptr()->nonblocking_flag = false;
          driver_set_nonblock_state();
       }
 
@@ -3354,9 +3380,9 @@ void netplay_sync_post_frame(netplay_t *netplay, bool stalled)
             if (netplay->catch_up_behind <= cur_behind)
             {
                /* We're definitely falling behind! */
-               netplay->catch_up      = true;
-               netplay->catch_up_time = 0;
-               input_set_nonblock_state();
+               netplay->catch_up                       = true;
+               netplay->catch_up_time                  = 0;
+               input_state_get_ptr()->nonblocking_flag = true;
                driver_set_nonblock_state();
             }
             else

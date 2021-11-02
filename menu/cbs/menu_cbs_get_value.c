@@ -47,6 +47,7 @@
 #include "../../playlist.h"
 #include "../../manual_content_scan.h"
 #include "../misc/cpufreq/cpufreq.h"
+#include "../../audio/audio_driver.h"
 
 #ifdef HAVE_NETWORKING
 #include "../../network/netplay/netplay.h"
@@ -1036,20 +1037,27 @@ static void menu_action_setting_disp_set_label_menu_video_resolution(
       char *s2, size_t len2)
 {
    unsigned width = 0, height = 0;
-
+   char desc[64] = {0};
    *w = 19;
    *s = '\0';
 
    strlcpy(s2, path, len2);
 
-   if (video_driver_get_video_output_size(&width, &height))
+   if (video_driver_get_video_output_size(&width, &height, desc, sizeof(desc)))
    {
 #ifdef GEKKO
       if (width == 0 || height == 0)
-         strcpy_literal(s, "DEFAULT");
+         snprintf(s, len, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_DONT_CARE));
       else
 #endif
-         snprintf(s, len, "%ux%u", width, height);
+      {
+         if (!string_is_empty(desc))
+            snprintf(s, len, msg_hash_to_str(MSG_SCREEN_RESOLUTION_FORMAT_DESC), 
+               width, height, desc);
+         else
+            snprintf(s, len, msg_hash_to_str(MSG_SCREEN_RESOLUTION_FORMAT_NO_DESC), 
+               width, height);
+      }
    }
    else
       strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NOT_AVAILABLE), len);
@@ -1297,7 +1305,7 @@ static void menu_action_setting_disp_set_label_core_option_override_info(
 
    if (!string_is_empty(override_path))
       options_file = path_basename_nocompression(override_path);
-   else if (rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
+   else if (retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
    {
       const char *options_path = coreopts->conf_path;
       if (!string_is_empty(options_path))
@@ -1511,7 +1519,7 @@ static void menu_action_setting_disp_set_label_core_options(
    {
       core_option_manager_t *coreopts = NULL;
 
-      if (rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
+      if (retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
          desc = core_option_manager_get_category_desc(
                coreopts, category);
    }
@@ -1539,7 +1547,7 @@ static void menu_action_setting_disp_set_label_core_option(
    *s = '\0';
    *w = 19;
 
-   if (rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
+   if (retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
    {
       coreopt_label = core_option_manager_get_val_label(coreopts,
             type - MENU_SETTINGS_CORE_OPTION_START);

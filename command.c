@@ -23,6 +23,7 @@
 #include <net/net_socket.h>
 #endif
 #include <lists/dir_list.h>
+#include <file/file_path.h>
 #include <streams/stdin_stream.h>
 #include <streams/file_stream.h>
 #include <string/stdstring.h>
@@ -43,12 +44,18 @@
 #include "network/netplay/netplay.h"
 #endif
 
+#include "audio/audio_driver.h"
+#if defined(HAVE_CG) || defined(HAVE_GLSL) || defined(HAVE_SLANG) || defined(HAVE_HLSL)
+#include "gfx/video_shader_parse.h"
+#endif
 #include "command.h"
+#include "core_info.h"
 #include "cheat_manager.h"
 #include "content.h"
 #include "dynamic.h"
 #include "list_special.h"
 #include "paths.h"
+#include "retroarch.h"
 #include "verbosity.h"
 #include "version.h"
 #include "version_git.h"
@@ -690,6 +697,123 @@ uint8_t *command_memory_get_pointer(
    *max_bytes = 0;
    return NULL;
 }
+
+bool command_get_status(command_t *cmd, const char* arg)
+{
+   char reply[4096]            = {0};
+   bool contentless            = false;
+   bool is_inited              = false;
+   runloop_state_t *runloop_st = runloop_state_get_ptr();
+
+   content_get_status(&contentless, &is_inited);
+
+   if (!is_inited)
+       strcpy_literal(reply, "GET_STATUS CONTENTLESS");
+   else
+   {
+       /* add some content info */
+       const char *status       = "PLAYING";
+       const char *content_name = path_basename(path_get(RARCH_PATH_BASENAME));  /* filename only without ext */
+       int content_crc32        = content_get_crc();
+       const char* system_id    = NULL;
+       core_info_t *core_info   = NULL;
+
+       core_info_get_current_core(&core_info);
+
+       if (runloop_st->paused)
+          status                = "PAUSED";
+       if (core_info)
+          system_id             = core_info->system_id;
+       if (!system_id)
+          system_id             = runloop_st->system.info.library_name;
+
+       snprintf(reply, sizeof(reply), "GET_STATUS %s %s,%s,crc32=%x\n", status, system_id, content_name, content_crc32);
+   }
+
+   cmd->replier(cmd, reply, strlen(reply));
+
+   return true;
+}
+
+bool command_read_memory(command_t *cmd, const char *arg)
+{
+   unsigned i;
+   char* reply                       = NULL;
+   char* reply_at                    = NULL;
+   const uint8_t* data               = NULL;
+   unsigned int nbytes               = 0;
+   unsigned int alloc_size           = 0;
+   unsigned int address              = -1;
+   size_t len                        = 0;
+   unsigned int max_bytes            = 0;
+   runloop_state_t *runloop_st       = runloop_state_get_ptr();
+   const rarch_system_info_t* system = &runloop_st->system;
+
+   if (sscanf(arg, "%x %u", &address, &nbytes) != 2)
+      return false;
+
+   /* Ensure large enough to return all requested bytes or an error message */
+   alloc_size = 64 + nbytes * 3;
+   reply      = (char*)malloc(alloc_size);
+   reply_at   = reply + snprintf(reply, alloc_size - 1, "READ_CORE_MEMORY %x", address);
+
+   data       = command_memory_get_pointer(system, address, &max_bytes, 0, reply_at, alloc_size - strlen(reply));
+
+   if (data)
+   {
+      if (nbytes > max_bytes)
+          nbytes = max_bytes;
+
+      for (i = 0; i < nbytes; i++)
+         snprintf(reply_at + 3 * i, 4, " %02X", data[i]);
+
+      reply_at[3 * nbytes] = '\n';
+      len                  = reply_at + 3 * nbytes + 1 - reply;
+   }
+   else
+      len                  = strlen(reply);
+
+   cmd->replier(cmd, reply, len);
+   free(reply);
+   return true;
+}
+
+bool command_write_memory(command_t *cmd, const char *arg)
+{
+   unsigned int address         = (unsigned int)strtoul(arg, (char**)&arg, 16);
+   unsigned int max_bytes       = 0;
+   char reply[128]              = "";
+   runloop_state_t *runloop_st  = runloop_state_get_ptr();
+   const rarch_system_info_t
+      *system                   = &runloop_st->system;
+   char *reply_at               = reply + snprintf(reply, sizeof(reply) - 1, "WRITE_CORE_MEMORY %x", address);
+   uint8_t *data                = command_memory_get_pointer(system, address, &max_bytes, 1, reply_at, sizeof(reply) - strlen(reply) - 1);
+
+   if (data)
+   {
+      uint8_t* start = data;
+      while (*arg && max_bytes > 0)
+      {
+         --max_bytes;
+         *data = strtoul(arg, (char**)&arg, 16);
+         data++;
+      }
+
+      snprintf(reply_at, sizeof(reply) - strlen(reply) - 1,
+            " %u\n", (unsigned)(data - start));
+
+#ifdef HAVE_CHEEVOS
+      if (rcheevos_hardcore_active())
+      {
+         RARCH_LOG("Achievements hardcore mode disabled by WRITE_CORE_MEMORY\n");
+         rcheevos_pause_hardcore();
+      }
+#endif
+   }
+
+   cmd->replier(cmd, reply, strlen(reply));
+   return true;
+}
 #endif
 
 void command_event_set_volume(
@@ -901,7 +1025,7 @@ bool command_event_resize_windowed_scale(settings_t *settings,
    if (!video_fullscreen)
       command_event(CMD_EVENT_REINIT, NULL);
 
-   rarch_ctl(RARCH_CTL_SET_WINDOWED_SCALE, &idx);
+   retroarch_ctl(RARCH_CTL_SET_WINDOWED_SCALE, &idx);
 
    return true;
 }
@@ -1152,3 +1276,32 @@ void command_event_set_savestate_garbage_collect(
 
    dir_list_free(dir_list);
 }
+
+#if defined(HAVE_CG) || defined(HAVE_GLSL) || defined(HAVE_SLANG) || defined(HAVE_HLSL)
+bool command_set_shader(command_t *cmd, const char *arg)
+{
+   enum  rarch_shader_type type = video_shader_parse_type(arg);
+   settings_t  *settings        = config_get_ptr();
+
+   if (!string_is_empty(arg))
+   {
+      if (!video_shader_is_supported(type))
+         return false;
+
+      /* rebase on shader directory */
+      if (!path_is_absolute(arg))
+      {
+         static char abs_arg[PATH_MAX_LENGTH];
+         const char *ref_path = settings->paths.directory_video_shader;
+         fill_pathname_join(abs_arg,
+               ref_path, arg, sizeof(abs_arg));
+         /* TODO/FIXME - pointer to local variable -
+          * making abs_arg static for now to workaround this
+          */
+         arg = abs_arg;
+      }
+   }
+
+   return apply_shader(settings, type, arg, true);
+}
+#endif

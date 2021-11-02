@@ -7059,16 +7059,19 @@ static void materialui_frame(void *data, video_frame_info_t *video_info)
             video_height / 4, msg);
 
       /* Draw onscreen keyboard */
-      gfx_display_draw_keyboard(
-            p_disp,
-            userdata,
-            video_width,
-            video_height,
-            mui->textures.list[MUI_TEXTURE_KEY_HOVER],
-            mui->font_data.list.font,
-            input_event_get_osk_grid(),
-            input_event_get_osk_ptr(),
-            0xFFFFFFFF);
+      {
+         input_driver_state_t *input_st = input_state_get_ptr();
+         gfx_display_draw_keyboard(
+               p_disp,
+               userdata,
+               video_width,
+               video_height,
+               mui->textures.list[MUI_TEXTURE_KEY_HOVER],
+               mui->font_data.list.font,
+               input_st->osk_grid,
+               input_st->osk_ptr,
+               0xFFFFFFFF);
+      }
 
       /* Flush message box & osk text
        * > Message box & osk only use list font */
@@ -8263,7 +8266,7 @@ static void materialui_populate_nav_bar(
     * > Menu driver must be alive at this point, and retroarch
     *   must be initialised, so all we have to do (or can do)
     *   is check whether a non-dummy core is loaded) */
-   mui->nav_bar.resume_tab.enabled = !rarch_ctl(RARCH_CTL_IS_DUMMY_CORE, NULL);
+   mui->nav_bar.resume_tab.enabled = !retroarch_ctl(RARCH_CTL_IS_DUMMY_CORE, NULL);
 
    /* Menu tabs */
 
@@ -9217,9 +9220,9 @@ static int materialui_list_push(void *data, void *userdata,
 
             menu_entries_ctl(MENU_ENTRIES_CTL_CLEAR, info->list);
 
-            if (rarch_ctl(RARCH_CTL_CORE_IS_RUNNING, NULL))
+            if (retroarch_ctl(RARCH_CTL_CORE_IS_RUNNING, NULL))
             {
-               if (!rarch_ctl(RARCH_CTL_IS_DUMMY_CORE, NULL))
+               if (!retroarch_ctl(RARCH_CTL_IS_DUMMY_CORE, NULL))
                {
                   MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(
                         info->list,

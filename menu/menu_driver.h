@@ -496,6 +496,8 @@ struct menu_state
     * - Is screensaver currently active? */
    bool screensaver_supported;
    bool screensaver_active;
+   bool is_binding;
+   bool alive;
 };
 
 
@@ -612,10 +614,15 @@ void menu_display_handle_wallpaper_upload(retro_task_t *task,
       void *user_data, const char *err);
 
 #if defined(HAVE_LIBRETRODB)
+typedef struct explore_state explore_state_t;
+explore_state_t *menu_explore_build_list(const char *directory_playlist,
+      const char *directory_database);
 uintptr_t menu_explore_get_entry_icon(unsigned type);
 void menu_explore_context_init(void);
 void menu_explore_context_deinit(void);
+void menu_explore_free_state(explore_state_t *state);
 void menu_explore_free(void);
+void menu_explore_set_state(explore_state_t *state);
 #endif
 
 /* Returns true if search filter is enabled
@@ -776,10 +783,6 @@ bool menu_driver_displaylist_push(
       file_list_t *entry_list,
       file_list_t *entry_stack);
 
-void bundle_decompressed(retro_task_t *task,
-      void *task_data,
-      void *user_data, const char *err);
-
 int generic_menu_entry_action(void *userdata, menu_entry_t *entry, size_t i, enum menu_action action);
 
 #if defined(HAVE_CG) || defined(HAVE_GLSL) || defined(HAVE_SLANG) || defined(HAVE_HLSL)
@@ -848,6 +851,8 @@ extern menu_ctx_driver_t menu_ctx_xmb;
 extern menu_ctx_driver_t menu_ctx_stripes;
 
 void menu_input_search_cb(void *userdata, const char *str);
+bool menu_input_key_bind_custom_bind_keyboard_cb(
+      void *data, unsigned code);
 /* This callback gets triggered by the keyboard whenever
  * we press or release a keyboard key. When a keyboard
  * key is being pressed down, 'down' will be true. If it
@@ -855,6 +860,63 @@ void menu_input_search_cb(void *userdata, const char *str);
  */
 void menu_input_key_event(bool down, unsigned keycode,
       uint32_t character, uint16_t mod);
+
+const menu_ctx_driver_t *menu_driver_find_driver(
+      settings_t *settings,
+      const char *prefix,
+      bool verbosity_enabled);
+
+bool menu_input_key_bind_iterate(
+      settings_t *settings,
+      menu_input_ctx_bind_t *bind,
+      retro_time_t current_time);
+
+/*
+ * This function gets called in order to process all input events
+ * for the current frame.
+ *
+ * Sends input code to menu for one frame.
+ *
+ * It uses as input the local variables 'input' and 'trigger_input'.
+ *
+ * Mouse and touch input events get processed inside this function.
+ *
+ * NOTE: 'input' and 'trigger_input' is sourced from the keyboard and/or
+ * the gamepad. It does not contain input state derived from the mouse
+ * and/or touch - this gets dealt with separately within this function.
+ *
+ * TODO/FIXME - maybe needs to be overhauled so we can send multiple
+ * events per frame if we want to, and we shouldn't send the
+ * entire button state either but do a separate event per button
+ * state.
+ */
+unsigned menu_event(
+      settings_t *settings,
+      input_bits_t *p_input,
+      input_bits_t *p_trigger_input,
+      bool display_kb);
+
+int menu_input_post_iterate(
+      gfx_display_t *p_disp,
+      struct menu_state *menu_st,
+      unsigned action,
+      retro_time_t current_time);
+
+/* Gets called when we want to toggle the menu.
+ * If the menu is already running, it will be turned off.
+ * If the menu is off, then the menu will be started.
+ */
+void menu_driver_toggle(
+      void *curr_video_data,
+      void *video_driver_data,
+      menu_handle_t *menu,
+      menu_input_t *menu_input,
+      settings_t *settings,
+      bool menu_driver_alive,
+      bool overlay_alive,
+      retro_keyboard_event_t *key_event,
+      retro_keyboard_event_t *frontend_key_event,
+      bool on);
 
 extern const menu_ctx_driver_t *menu_ctx_drivers[];
 

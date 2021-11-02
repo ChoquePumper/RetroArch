@@ -31,6 +31,8 @@
 #include "../../cheevos/cheevos.h"
 #endif
 
+#include "../../audio/audio_driver.h"
+
 #ifndef BIND_ACTION_GET_TITLE
 #define BIND_ACTION_GET_TITLE(cbs, name) (cbs)->action_get_title = (name)
 #endif
@@ -213,7 +215,7 @@ static int action_get_title_core_options_list(
    {
       core_option_manager_t *coreopts = NULL;
 
-      if (rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
+      if (retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts))
          title = core_option_manager_get_category_desc(
                coreopts, category);
    }
@@ -254,7 +256,7 @@ static int action_get_title_dropdown_item(
 
       if (tmp_str_list.size > 0)
       {
-         rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts);
+         retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts);
 
          if (coreopts)
          {

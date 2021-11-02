@@ -79,6 +79,7 @@
 #include "../paths.h"
 #include "../dynamic.h"
 #include "../list_special.h"
+#include "../audio/audio_driver.h"
 #include "../bluetooth/bluetooth_driver.h"
 #include "../wifi/wifi_driver.h"
 #include "../midi_driver.h"
@@ -4752,6 +4753,16 @@ static void setting_get_string_representation_uint_ozone_menu_color_theme(
                msg_hash_to_str(
                   MENU_ENUM_LABEL_VALUE_OZONE_COLOR_THEME_DRACULA), len);
          break;
+      case OZONE_COLOR_THEME_SOLARIZED_DARK:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_OZONE_COLOR_THEME_SOLARIZED_DARK), len);
+         break;
+      case OZONE_COLOR_THEME_SOLARIZED_LIGHT:
+         strlcpy(s,
+               msg_hash_to_str(
+                  MENU_ENUM_LABEL_VALUE_OZONE_COLOR_THEME_SOLARIZED_LIGHT), len);
+         break;
       case OZONE_COLOR_THEME_BASIC_WHITE:
       default:
          strlcpy(s,
@@ -5281,7 +5292,7 @@ static void setting_get_string_representation_uint_video_dingux_refresh_rate(
 }
 #endif
 
-#if defined(RS90)
+#if defined(RS90) || defined(MIYOO)
 static void setting_get_string_representation_uint_video_dingux_rs90_softfilter_type(
       rarch_setting_t *setting,
       char *s, size_t len)
@@ -6477,7 +6488,7 @@ static void setting_get_string_representation_netplay_share_analog(
 }
 #endif
 
-static void setting_get_string_representation_toggle_gamepad_combo(
+static void setting_get_string_representation_gamepad_combo(
       rarch_setting_t *setting,
       char *s, size_t len)
 {
@@ -6486,37 +6497,37 @@ static void setting_get_string_representation_toggle_gamepad_combo(
 
    switch (*setting->value.target.unsigned_integer)
    {
-      case INPUT_TOGGLE_NONE:
+      case INPUT_COMBO_NONE:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NONE), len);
          break;
-      case INPUT_TOGGLE_DOWN_Y_L_R:
+      case INPUT_COMBO_DOWN_Y_L_R:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_DOWN_Y_L_R), len);
          break;
-      case INPUT_TOGGLE_L3_R3:
+      case INPUT_COMBO_L3_R3:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_L3_R3), len);
          break;
-      case INPUT_TOGGLE_L1_R1_START_SELECT:
+      case INPUT_COMBO_L1_R1_START_SELECT:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_L1_R1_START_SELECT), len);
          break;
-      case INPUT_TOGGLE_START_SELECT:
+      case INPUT_COMBO_START_SELECT:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_START_SELECT), len);
          break;
-      case INPUT_TOGGLE_L3_R:
+      case INPUT_COMBO_L3_R:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_L3_R), len);
          break;
-      case INPUT_TOGGLE_L_R:
+      case INPUT_COMBO_L_R:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_L_R), len);
          break;
-      case INPUT_TOGGLE_HOLD_START:
+      case INPUT_COMBO_HOLD_START:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_HOLD_START), len);
          break;
-      case INPUT_TOGGLE_HOLD_SELECT:
+      case INPUT_COMBO_HOLD_SELECT:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_HOLD_SELECT), len);
          break;
-      case INPUT_TOGGLE_DOWN_SELECT:
+      case INPUT_COMBO_DOWN_SELECT:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_DOWN_SELECT), len);
          break;
-      case INPUT_TOGGLE_L2_R2:
+      case INPUT_COMBO_L2_R2:
          strlcpy(s, msg_hash_to_str(MENU_ENUM_LABEL_VALUE_L2_R2), len);
          break;
    }
@@ -7809,7 +7820,7 @@ static void general_write_handler(rarch_setting_t *setting)
       case MENU_ENUM_LABEL_VIDEO_CTX_SCALING:
 #if defined(DINGUX)
       case MENU_ENUM_LABEL_VIDEO_DINGUX_IPU_FILTER_TYPE:
-#if defined(RS90)
+#if defined(RS90) || defined(MIYOO)
       case MENU_ENUM_LABEL_VIDEO_DINGUX_RS90_SOFTFILTER_TYPE:
 #endif
 #endif
@@ -8217,8 +8228,8 @@ static void general_write_handler(rarch_setting_t *setting)
             if (run_ahead_enabled &&
                 (run_ahead_frames > 0) &&
                 run_ahead_secondary_instance &&
-                !rarch_ctl(RARCH_CTL_IS_SECOND_CORE_LOADED, NULL) &&
-                rarch_ctl(RARCH_CTL_IS_SECOND_CORE_AVAILABLE, NULL) &&
+                !retroarch_ctl(RARCH_CTL_IS_SECOND_CORE_LOADED, NULL) &&
+                retroarch_ctl(RARCH_CTL_IS_SECOND_CORE_AVAILABLE, NULL) &&
                 command_event(CMD_EVENT_LOAD_SECOND_CORE, NULL))
                command_event(CMD_EVENT_CHEATS_APPLY, NULL);
          }
@@ -9902,6 +9913,11 @@ static bool setting_append_list(
 #endif
             for (i = 0; i < ARRAY_SIZE(bool_entries); i++)
             {
+#if defined(HAVE_CORE_INFO_CACHE)
+               if (bool_entries[i].name_enum_idx ==
+                     MENU_ENUM_LABEL_CORE_INFO_CACHE_ENABLE)
+                  continue;
+#endif
                CONFIG_BOOL(
                      list, list_info,
                      bool_entries[i].target,
@@ -10130,7 +10146,7 @@ static bool setting_append_list(
             START_SUB_GROUP(list, list_info, "Performance Counters", &group_info, &subgroup_info,
                   parent_group);
 
-            rarch_ctl(RARCH_CTL_GET_PERFCNT, &tmp_b);
+            retroarch_ctl(RARCH_CTL_GET_PERFCNT, &tmp_b);
 
             CONFIG_BOOL(
                   list, list_info,
@@ -11390,7 +11406,7 @@ static bool setting_append_list(
                   CMD_EVENT_VIDEO_APPLY_STATE_CHANGES);
             SETTINGS_DATA_LIST_CURRENT_ADD_FLAGS(list, list_info, SD_FLAG_LAKKA_ADVANCED);
 
-#if defined(GEKKO) || !defined(__PSL1GHT__) && defined(__PS3__)
+#if defined(GEKKO) || defined(PS2) || !defined(__PSL1GHT__) && defined(__PS3__)
             if (true)
 #else
             if (!string_is_equal(video_display_server_get_ident(), "null"))
@@ -11404,6 +11420,34 @@ static bool setting_append_list(
                      &subgroup_info,
                      parent_group);
             }
+
+#if defined(HAVE_WINDOW_OFFSET)
+            CONFIG_INT(
+                  list, list_info,
+                  &settings->ints.video_window_offset_x,
+                  MENU_ENUM_LABEL_VIDEO_WINDOW_OFFSET_X,
+                  MENU_ENUM_LABEL_VALUE_VIDEO_WINDOW_OFFSET_X,
+                  DEFAULT_WINDOW_OFFSET_X,
+                  &group_info,
+                  &subgroup_info,
+                  parent_group,
+                  general_write_handler,
+                  general_read_handler);
+            menu_settings_list_current_add_range(list, list_info, -50, 50, 1, true, true);
+
+            CONFIG_INT(
+                  list, list_info,
+                  &settings->ints.video_window_offset_y,
+                  MENU_ENUM_LABEL_VIDEO_WINDOW_OFFSET_Y,
+                  MENU_ENUM_LABEL_VALUE_VIDEO_WINDOW_OFFSET_Y,
+                  DEFAULT_WINDOW_OFFSET_Y,
+                  &group_info,
+                  &subgroup_info,
+                  parent_group,
+                  general_write_handler,
+                  general_read_handler);
+            menu_settings_list_current_add_range(list, list_info, -50, 50, 1, true, true);
+#endif
 
             CONFIG_UINT(
                   list, list_info,
@@ -11763,7 +11807,7 @@ static bool setting_append_list(
                menu_settings_list_current_add_range(list, list_info, 0, DINGUX_IPU_FILTER_LAST - 1, 1, true, true);
                (*list)[list_info->index - 1].ui_type   = ST_UI_TYPE_UINT_COMBOBOX;
             }
-#if defined(RS90)
+#if defined(RS90) || defined(MIYOO)
             else if (string_is_equal(settings->arrays.video_driver, "sdl_rs90"))
             {
                CONFIG_UINT(
@@ -13089,8 +13133,25 @@ static bool setting_append_list(
             (*list)[list_info->index - 1].ui_type   = ST_UI_TYPE_UINT_COMBOBOX;
             (*list)[list_info->index - 1].action_ok = &setting_action_ok_uint;
             (*list)[list_info->index - 1].get_string_representation =
-               &setting_get_string_representation_toggle_gamepad_combo;
-            menu_settings_list_current_add_range(list, list_info, 0, (INPUT_TOGGLE_LAST-1), 1, true, true);
+               &setting_get_string_representation_gamepad_combo;
+            menu_settings_list_current_add_range(list, list_info, 0, (INPUT_COMBO_LAST-1), 1, true, true);
+
+            CONFIG_UINT(
+                  list, list_info,
+                  &settings->uints.input_quit_gamepad_combo,
+                  MENU_ENUM_LABEL_INPUT_QUIT_GAMEPAD_COMBO,
+                  MENU_ENUM_LABEL_VALUE_INPUT_QUIT_GAMEPAD_COMBO,
+                  DEFAULT_QUIT_GAMEPAD_COMBO,
+                  &group_info,
+                  &subgroup_info,
+                  parent_group,
+                  general_write_handler,
+                  general_read_handler);
+            (*list)[list_info->index - 1].ui_type   = ST_UI_TYPE_UINT_COMBOBOX;
+            (*list)[list_info->index - 1].action_ok = &setting_action_ok_uint;
+            (*list)[list_info->index - 1].get_string_representation =
+               &setting_get_string_representation_gamepad_combo;
+            menu_settings_list_current_add_range(list, list_info, 0, (INPUT_COMBO_LAST-1), 1, true, true);
 
             CONFIG_UINT(
                   list, list_info,

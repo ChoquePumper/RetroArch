@@ -55,6 +55,7 @@
 #include "../../core.h"
 #include "../../configuration.h"
 #include "../../core_info.h"
+#include "../../audio/audio_driver.h"
 #include "../../frontend/frontend_driver.h"
 #include "../../defaults.h"
 #include "../../core_option_manager.h"
@@ -1125,7 +1126,7 @@ int generic_action_ok_displaylist_push(const char *path,
          {
             content_ctx_info_t content_info = {0};
             filebrowser_clear_type();
-            task_push_load_subsystem_with_core_from_menu(
+            task_push_load_subsystem_with_core(
                   NULL, &content_info,
                   CORE_TYPE_PLAIN, NULL, NULL);
          }
@@ -2137,7 +2138,7 @@ static int default_action_ok_load_content_with_core_from_menu(const char *_path,
    content_info.argv                   = NULL;
    content_info.args                   = NULL;
    content_info.environ_get            = NULL;
-   if (!task_push_load_content_with_core_from_menu(
+   if (!task_push_load_content_with_core(
             _path, &content_info,
             (enum rarch_core_type)_type, NULL, NULL))
       return -1;
@@ -2501,7 +2502,7 @@ static int action_ok_playlist_entry_collection(const char *path,
       for (i = 0; i < entry->subsystem_roms->size; i++)
          content_add_subsystem(entry->subsystem_roms->elems[i].data);
 
-      task_push_load_subsystem_with_core_from_menu(
+      task_push_load_subsystem_with_core(
             NULL, &content_info,
             CORE_TYPE_PLAIN, NULL, NULL);
 
@@ -2691,7 +2692,7 @@ static int action_ok_load_cdrom(const char *path,
          content_info.args        = NULL;
          content_info.environ_get = NULL;
 
-         task_push_load_content_with_core_from_menu(cdrom_path, &content_info, CORE_TYPE_PLAIN, NULL, NULL);
+         task_push_load_content_with_core(cdrom_path, &content_info, CORE_TYPE_PLAIN, NULL, NULL);
       }
 #else
       frontend_driver_set_fork(FRONTEND_FORK_CORE_WITH_ARGS);
@@ -3401,13 +3402,13 @@ static int generic_action_ok_remap_file_operation(const char *path,
          switch (action_type)
          {
             case ACTION_OK_REMAP_FILE_SAVE_CORE:
-               rarch_ctl(RARCH_CTL_SET_REMAPS_CORE_ACTIVE, NULL);
+               retroarch_ctl(RARCH_CTL_SET_REMAPS_CORE_ACTIVE, NULL);
                break;
             case ACTION_OK_REMAP_FILE_SAVE_GAME:
-               rarch_ctl(RARCH_CTL_SET_REMAPS_GAME_ACTIVE, NULL);
+               retroarch_ctl(RARCH_CTL_SET_REMAPS_GAME_ACTIVE, NULL);
                break;
             case ACTION_OK_REMAP_FILE_SAVE_CONTENT_DIR:
-               rarch_ctl(RARCH_CTL_SET_REMAPS_CONTENT_DIR_ACTIVE, NULL);
+               retroarch_ctl(RARCH_CTL_SET_REMAPS_CONTENT_DIR_ACTIVE, NULL);
                break;
          }
 #endif
@@ -3430,21 +3431,21 @@ static int generic_action_ok_remap_file_operation(const char *path,
          switch (action_type)
          {
             case ACTION_OK_REMAP_FILE_REMOVE_CORE:
-               if (rarch_ctl(RARCH_CTL_IS_REMAPS_CORE_ACTIVE, NULL))
+               if (retroarch_ctl(RARCH_CTL_IS_REMAPS_CORE_ACTIVE, NULL))
                {
                   input_remapping_deinit();
                   input_remapping_set_defaults(false);
                }
                break;
             case ACTION_OK_REMAP_FILE_REMOVE_GAME:
-               if (rarch_ctl(RARCH_CTL_IS_REMAPS_GAME_ACTIVE, NULL))
+               if (retroarch_ctl(RARCH_CTL_IS_REMAPS_GAME_ACTIVE, NULL))
                {
                   input_remapping_deinit();
                   input_remapping_set_defaults(false);
                }
                break;
             case ACTION_OK_REMAP_FILE_REMOVE_CONTENT_DIR:
-               if (rarch_ctl(RARCH_CTL_IS_REMAPS_CONTENT_DIR_ACTIVE, NULL))
+               if (retroarch_ctl(RARCH_CTL_IS_REMAPS_CONTENT_DIR_ACTIVE, NULL))
                {
                   input_remapping_deinit();
                   input_remapping_set_defaults(false);
@@ -3800,7 +3801,7 @@ int action_ok_core_option_dropdown_list(const char *path,
       goto push_dropdown_list;
 
    /* > Get core options struct */
-   if (!rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts) ||
+   if (!retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts) ||
        (option_index >= coreopts->size))
       goto push_dropdown_list;
 
@@ -5669,14 +5670,8 @@ static int action_ok_open_picker(const char *path,
    const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
    int ret;
-#ifdef __WINRT__
-   char *new_path = uwp_trigger_picker();
-   if (!new_path)
-      return 0; /* User aborted */
-#else
    char *new_path = NULL;
    retro_assert(false);
-#endif
 
    ret = generic_action_ok_displaylist_push(path, new_path,
       msg_hash_to_str(MENU_ENUM_LABEL_FAVORITES),
@@ -6057,7 +6052,7 @@ static int action_ok_push_dropdown_setting_core_options_item_special(
    core_option_manager_t *coreopts = NULL;
    int core_option_idx             = (int)atoi(label);
 
-   rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts);
+   retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts);
 
    if (!coreopts)
       return -1;
@@ -6073,7 +6068,7 @@ static int action_ok_push_dropdown_setting_core_options_item(const char *path,
    core_option_manager_t *coreopts = NULL;
    int core_option_idx             = (int)atoi(label);
 
-   rarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts);
+   retroarch_ctl(RARCH_CTL_CORE_OPTIONS_LIST_GET, &coreopts);
 
    if (!coreopts)
       return -1;
@@ -6763,11 +6758,12 @@ static int generic_dropdown_box_list(size_t idx, unsigned lbl)
 static int action_ok_video_resolution(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
-#if defined(GEKKO) || !defined(__PSL1GHT__) && defined(__PS3__)
+#if defined(GEKKO) || defined(PS2) || !defined(__PSL1GHT__) && defined(__PS3__)
    unsigned width   = 0;
    unsigned  height = 0;
+   char desc[64] = {0};
 
-   if (video_driver_get_video_output_size(&width, &height))
+   if (video_driver_get_video_output_size(&width, &height, desc, sizeof(desc)))
    {
       char msg[PATH_MAX_LENGTH];
 
@@ -6779,12 +6775,17 @@ static int action_ok_video_resolution(const char *path,
       video_driver_set_video_mode(width, height, true);
 #ifdef GEKKO
       if (width == 0 || height == 0)
-         strcpy_literal(msg, "Applying: DEFAULT");
+         snprintf(msg, sizeof(msg), msg_hash_to_str(MSG_SCREEN_RESOLUTION_APPLYING_DEFAULT));
       else
 #endif
-         snprintf(msg, sizeof(msg),
-               "Applying: %dx%d\n START to reset",
+      {
+         if (!string_is_empty(desc))
+            snprintf(msg, sizeof(msg), msg_hash_to_str(MSG_SCREEN_RESOLUTION_APPLYING_DESC), 
+               width, height, desc);
+         else
+            snprintf(msg, sizeof(msg), msg_hash_to_str(MSG_SCREEN_RESOLUTION_APPLYING_NO_DESC), 
                width, height);
+      }
       runloop_msg_queue_push(msg, 1, 100, true, NULL,
             MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
    }
@@ -7289,7 +7290,7 @@ static int action_ok_core_delete(const char *path,
 
    /* Check if core to be deleted is currently
     * loaded - if so, unload it */
-   if (rarch_ctl(RARCH_CTL_IS_CORE_LOADED, (void*)core_path))
+   if (retroarch_ctl(RARCH_CTL_IS_CORE_LOADED, (void*)core_path))
       generic_action_ok_command(CMD_EVENT_UNLOAD_CORE);
 
    /* Delete core file */
